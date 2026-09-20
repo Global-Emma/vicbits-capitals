@@ -5,6 +5,48 @@
   --foreground: #171717;
 }
 
+/* Hide Google Translate top iframe banner & fix body offset */
+.goog-te-banner-frame {
+  display: none !important;
+}
+
+body {
+  top: 0px !important;
+  position: static !important;
+}
+
+/* Hide Google Translate branding text & logo, keep only clean select dropdown */
+.goog-te-gadget {
+  font-size: 0 !important;
+  color: transparent !important;
+}
+
+.goog-te-gadget .goog-te-combo {
+  background-color: #091322 !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 0.5rem !important;
+  padding: 0.4rem 0.6rem !important;
+  font-size: 0.875rem !important;
+  outline: none !important;
+  cursor: pointer;
+}
+
+.goog-te-gadget .goog-te-combo:hover {
+  border-color: #f3b233 !important;
+}
+
+/* Hide Google hover highlight popups */
+.goog-tooltip,
+.goog-te-balloon-frame {
+  display: none !important;
+}
+
+.goog-text-highlight {
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
