@@ -36,6 +36,8 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import GoogleTranslate from "@/components/GoogleTranslate";
+import SignUpModal from "@/components/SignUpModal";
+import SignInModal from "@/components/SignInModal";
 
 const fadeInUp:Variants = {
   hidden: { opacity: 0, y: 30 },
@@ -108,6 +110,7 @@ export default function VicbitsHomePage() {
   const [consultationModalOpen, setConsultationModalOpen] = useState(false);
   const [depositModalOpen, setDepositModalOpen] = useState(false);
   const [signUpModalOpen, setSignUpModalOpen] = useState(false);
+  const [signInModalOpen, setSignInModalOpen] = useState(false);
   const [selectedPlanForDeposit, setSelectedPlanForDeposit] = useState("Growth Wealth Plan");
 
   // Contact Form State
@@ -119,6 +122,8 @@ export default function VicbitsHomePage() {
     message: "",
   });
   const [contactSubmitted, setContactSubmitted] = useState(false);
+
+  //
 
   // Calculator State
   const [calcAmount, setCalcAmount] = useState(10000);
@@ -299,7 +304,7 @@ export default function VicbitsHomePage() {
           <div className="hidden md:flex items-center space-x-3.5">
             <GoogleTranslate />
             <button
-              onClick={() => setSignUpModalOpen(true)}
+              onClick={() => setSignInModalOpen(true)}
               className="px-4 py-2 rounded-xl text-xs font-bold text-slate-200 border border-slate-700/80 hover:bg-slate-800 hover:border-slate-600 transition-all"
             >
               Log In
@@ -1693,15 +1698,8 @@ export default function VicbitsHomePage() {
 
           </div>
 
-          {/* Risk Disclaimer */}
-          <div className="py-8 text-[11px] text-slate-500 space-y-2 border-b border-slate-800/80">
-            <p>
-              <strong>Risk Warning:</strong> Investing in real estate, digital assets, and commodities involves substantial risk of profit fluctuations. Past performance yield rates do not guarantee future returns. Investors should carefully evaluate their capital risk tolerance before committing deposits.
-            </p>
-          </div>
-
           <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
-            <p>&copy; 2026 VicBits Capitals Group Ltd. All Rights Reserved.</p>
+            <p>&copy; 2015 VicBits Capitals Group Ltd. All Rights Reserved.</p>
             <div className="flex items-center gap-6">
               <a href="#" className="hover:text-slate-300">Security Certificate</a>
               <a href="#" className="hover:text-slate-300">Status Page</a>
@@ -1863,80 +1861,15 @@ export default function VicbitsHomePage() {
 
       {/* MODAL 3: SIGN UP / ACCOUNT MODAL */}
       <AnimatePresence>
-        {signUpModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-[#0A192F] border border-slate-700 rounded-3xl p-6 sm:p-8 max-w-md w-full relative shadow-2xl space-y-6"
-            >
-              <button
-                onClick={() => setSignUpModalOpen(false)}
-                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white"
-              >
-                <X size={20} />
-              </button>
+          <SignUpModal
+            isOpen={signUpModalOpen}
+            onClose={() => setSignUpModalOpen(false)}
+          />
 
-              <div className="text-center space-y-2">
-                <Gem className="w-8 h-8 text-[#F3B233] mx-auto" />
-                <h3 className="text-2xl font-black text-white">Join VicBits Capitals</h3>
-                <p className="text-xs text-slate-400">Unlock high-yield real estate and crypto asset vaults today.</p>
-              </div>
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  alert("Account registered successfully! Redirecting to investor dashboard...");
-                  setSignUpModalOpen(false);
-                }}
-                className="space-y-3 text-xs"
-              >
-                <div>
-                  <label className="text-slate-300 font-semibold mb-1 block">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Alexander Vance"
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 focus:border-[#F3B233] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-slate-300 font-semibold mb-1 block">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="alex@example.com"
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 focus:border-[#F3B233] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-slate-300 font-semibold mb-1 block">Password</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder="••••••••••••"
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 focus:border-[#F3B233] focus:outline-none"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full py-4 rounded-xl font-bold text-xs text-slate-950 bg-linear-to-r from-[#F3B233] to-[#E5A422] shadow-lg shadow-[#F3B233]/25 mt-2"
-                >
-                  Create Investor Account
-                </button>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
+          <SignInModal
+            isOpen={signInModalOpen}
+            onClose={() => setSignInModalOpen(false)}
+          />
       </AnimatePresence>
 
     </div>
