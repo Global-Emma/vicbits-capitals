@@ -247,13 +247,10 @@ export default function VicbitsDashboard() {
                     <h3 className="text-sm font-bold text-white">Recent Transactions</h3>
                     <p className="text-[11px] text-slate-400">Your latest account activity</p>
                   </div>
-                  <button
-                    type="button"
-                    className="text-[11px] font-bold text-[#1E6BF3] hover:underline flex items-center gap-0.5"
-                  >
+                  <Link href="/user-dashboard/transactions" className="text-[11px] font-bold text-[#1E6BF3] hover:underline flex items-center gap-0.5">
                     <span>View All</span>
                     <ChevronRight size={12} />
-                  </button>
+                  </Link>
                 </div>
 
                 <div className="space-y-3">

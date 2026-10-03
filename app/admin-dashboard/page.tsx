@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import {
@@ -25,6 +27,7 @@ import {
   Coins,
   ChevronRight,
 } from "lucide-react";
+import { isAxiosError } from "axios";
 import api from "@/utils/axios";
 import { useApp } from "@/utils/useApp";
 
@@ -77,11 +80,12 @@ const itemVariants: Variants = {
 export default function VicbitsAdminDashboard() {
   const { user, logout, loading } = useApp();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("Admin Dashboard");
+  const activeTab = "Admin Dashboard";
   const [timeframe, setTimeframe] = useState("Last 30 Days");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [reviewError, setReviewError] = useState("");
 
   useEffect(() => {
     if (!loading && user?.role !== "admin") router.replace("/user-dashboard");
@@ -94,25 +98,30 @@ export default function VicbitsAdminDashboard() {
   }, []);
 
   const reviewRequest = async (id: string, status: "Completed" | "Failed") => {
+    setReviewError("");
     try {
       await api.patch(`/api/portal/requests/${id}/status`, { status });
       const { data } = await api.get("/api/portal/admin/overview");
       setOverview(data.data);
     } catch (error) {
-      console.error("Could not review request:", error);
+      const message = isAxiosError(error)
+        ? error.response?.data?.message || error.response?.data?.error || error.message
+        : error instanceof Error ? error.message : "Unknown error";
+      console.error("Could not review request:", message, error);
+      setReviewError(`Could not review this request: ${message}`);
     }
   };
 
   const navItems = [
-    { name: "Admin Dashboard", icon: LayoutDashboard },
-    { name: "Users", icon: Users },
-    { name: "Deposits", icon: ArrowDownLeft },
-    { name: "Withdrawals", icon: ArrowUpRight },
-    { name: "Investments", icon: TrendingUp },
-    { name: "Transactions", icon: History },
-    { name: "Plans", icon: Layers },
-    { name: "Settings", icon: Settings },
-    { name: "Reports", icon: FileText },
+    { name: "Admin Dashboard", icon: LayoutDashboard, href: "/admin-dashboard" },
+    { name: "Users", icon: Users, href: "/admin-dashboard/users" },
+    { name: "Deposits", icon: ArrowDownLeft, href: "/admin-dashboard/deposits" },
+    { name: "Withdrawals", icon: ArrowUpRight, href: "/admin-dashboard/withdrawals" },
+    { name: "Investments", icon: TrendingUp, href: "/admin-dashboard/investments" },
+    { name: "Transactions", icon: History, href: "/admin-dashboard/transactions" },
+    { name: "Plans", icon: Layers, href: "/admin-dashboard/plans" },
+    { name: "Settings", icon: Settings, href: "/admin-dashboard/settings" },
+    { name: "Reports", icon: FileText, href: "/admin-dashboard/reports" },
   ];
 
   const metrics = [
@@ -174,19 +183,16 @@ export default function VicbitsAdminDashboard() {
         <div>
           {/* BRAND LOGO */}
           <div className="h-20 px-6 flex items-center justify-between border-b border-slate-800/60">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#F3B233] to-[#D89315] flex items-center justify-center font-extrabold text-slate-950 text-xl shadow-md shadow-[#F3B233]/20">
-                V
-              </div>
-              <div>
-                <h1 className="text-base font-bold tracking-tight text-white leading-none">
-                  VicBits
-                </h1>
-                <span className="text-[10px] font-bold text-[#F3B233] uppercase tracking-wider">
-                  Capitals
-                </span>
-              </div>
-            </div>
+            <Link href="/" className="flex items-center gap-3 group">
+              <Image
+                src="/logo.png"
+                alt="VicBits Capitals"
+                width={140}
+                height={40}
+                className="object-contain"
+                priority
+              />
+            </Link>
             <button
               className="lg:hidden text-slate-400 hover:text-white"
               onClick={() => setMobileSidebarOpen(false)}
@@ -205,8 +211,8 @@ export default function VicbitsAdminDashboard() {
                 <button
                   key={item.name}
                   onClick={() => {
-                    setActiveTab(item.name);
                     setMobileSidebarOpen(false);
+                    router.push(item.href);
                   }}
                   className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-xs font-semibold transition-all duration-200 ${
                     isActive
@@ -371,7 +377,7 @@ export default function VicbitsAdminDashboard() {
               <div>
                 <div className="flex items-center justify-between pb-4 border-b border-slate-800/80">
                   <h3 className="text-sm font-bold text-white">Recent Users</h3>
-                  <button className="text-[11px] font-bold text-[#1E6BF3] hover:underline flex items-center gap-0.5">
+                  <button onClick={() => router.push("/admin-dashboard/users")} className="text-[11px] font-bold text-[#1E6BF3] hover:underline flex items-center gap-0.5">
                     <span>View All</span>
                     <ChevronRight size={12} />
                   </button>
@@ -415,7 +421,7 @@ export default function VicbitsAdminDashboard() {
               </div>
 
               <div className="pt-4 border-t border-slate-800/80 text-center">
-                <button className="text-xs font-bold text-[#1E6BF3] hover:underline">
+                <button onClick={() => router.push("/admin-dashboard/users")} className="text-xs font-bold text-[#1E6BF3] hover:underline">
                   View All
                 </button>
               </div>
@@ -431,11 +437,17 @@ export default function VicbitsAdminDashboard() {
                     <h3 className="text-sm font-bold text-white">
                     Pending Requests
                   </h3>
-                  <button className="text-[11px] font-bold text-[#1E6BF3] hover:underline flex items-center gap-0.5">
+                  <button onClick={() => router.push("/admin-dashboard/deposits")} className="text-[11px] font-bold text-[#1E6BF3] hover:underline flex items-center gap-0.5">
                     <span>View All</span>
                     <ChevronRight size={12} />
                   </button>
                 </div>
+
+                {reviewError && (
+                  <p role="alert" className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+                    {reviewError}
+                  </p>
+                )}
 
                 <div className="overflow-x-auto mt-2">
                   <table className="w-full text-left text-xs">
@@ -475,9 +487,9 @@ export default function VicbitsAdminDashboard() {
                             </span>
                           </td>
                           <td className="py-3.5 px-2 text-right">
-                            <div className="flex justify-end gap-2">
+                            <div className="flex cursor-pointer justify-end gap-2">
                               <button onClick={() => reviewRequest(dep.id, "Completed")} className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300">Approve</button>
-                              <button onClick={() => reviewRequest(dep.id, "Failed")} className="text-[10px] font-bold text-rose-400 hover:text-rose-300">Reject</button>
+                              <button onClick={() => reviewRequest(dep.id, "Failed")} className="text-[10px] cursor-pointer font-bold text-rose-400 hover:text-rose-300">Reject</button>
                             </div>
                           </td>
                         </tr>
@@ -488,7 +500,7 @@ export default function VicbitsAdminDashboard() {
               </div>
 
               <div className="pt-4 border-t border-slate-800/80 text-center">
-                <button className="text-xs font-bold text-[#1E6BF3] hover:underline">
+                <button onClick={() => router.push("/admin-dashboard/deposits")} className="text-xs font-bold text-[#1E6BF3] hover:underline">
                   View All
                 </button>
               </div>

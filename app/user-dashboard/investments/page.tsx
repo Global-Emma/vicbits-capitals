@@ -22,6 +22,7 @@ import {
   Briefcase,
   DollarSign,
 } from "lucide-react";
+import { isAxiosError } from "axios";
 import DashboardLayout from "@/components/Sidebar";
 import api from "@/utils/axios";
 import { useApp } from "@/utils/useApp";
@@ -61,6 +62,11 @@ export interface InvestmentAsset {
   tags: string[];
 }
 
+const toFiniteNumber = (value: unknown): number => {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : 0;
+};
+
 // Category Configuration
 const CATEGORIES = [
   { id: "all", name: "All Assets", icon: Sparkles },
@@ -80,7 +86,10 @@ export default function InvestmentsPage() {
   // State for active investments
   const [activeInvestments, setActiveInvestments] = useState<ActiveInvestment[]>([]);
   const [assets, setAssets] = useState<InvestmentAsset[]>([]);
-  const { user, refetchData } = useApp();
+  const [availableBalance, setAvailableBalance] = useState(0);
+  const [loadError, setLoadError] = useState("");
+  const [submissionError, setSubmissionError] = useState("");
+  const { refetchData } = useApp();
 
   // Investment Modal State
   const [selectedAsset, setSelectedAsset] = useState<InvestmentAsset | null>(null);
@@ -89,25 +98,49 @@ export default function InvestmentsPage() {
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
 
   useEffect(() => {
-    Promise.all([api.get("/api/portal/plans"), api.get("/api/portal/investments")])
-      .then(([planResponse, investmentResponse]) => {
-        setAssets(planResponse.data.data.map((plan: InvestmentAsset & { _id: string; slug: string }) => ({
+    const loadInvestmentData = async () => {
+      try {
+        const [planResponse, investmentResponse, dashboardResponse] = await Promise.all([
+          api.get("/api/portal/plans"),
+          api.get("/api/portal/investments"),
+          api.get("/api/portal/dashboard"),
+        ]);
+        const plans = planResponse.data.data || [];
+        const investments = investmentResponse.data.data || [];
+
+        setAssets(plans.map((plan: InvestmentAsset & { _id: string; slug: string }) => ({
           ...plan,
           id: plan.slug,
-          priceDisplay: `$${Number(plan.price || 0).toLocaleString()}`,
+          price: toFiniteNumber(plan.price),
+          priceDisplay: `$${toFiniteNumber(plan.price).toLocaleString()}`,
+          expectedApy: toFiniteNumber(plan.expectedApy),
+          minInvestment: toFiniteNumber(plan.minInvestment),
+          tags: Array.isArray(plan.tags) ? plan.tags : [],
         })));
-        setActiveInvestments(investmentResponse.data.data.map((investment: ActiveInvestment & { startDate: string }) => ({
+        setActiveInvestments(investments.map((investment: ActiveInvestment & { startDate: string; expectedApy?: number }) => ({
           ...investment,
-          startDate: new Date(investment.startDate).toISOString().slice(0, 10),
+          investedAmount: toFiniteNumber(investment.investedAmount),
+          currentValue: toFiniteNumber(investment.currentValue),
+          totalProfit: toFiniteNumber(investment.totalProfit),
+          profitPercentage: toFiniteNumber(investment.profitPercentage),
+          apy: toFiniteNumber(investment.expectedApy ?? investment.apy),
+          startDate: investment.startDate ? new Date(investment.startDate).toISOString().slice(0, 10) : "",
         })));
-      })
-      .catch((error) => console.error("Could not load investment data:", error));
+        setAvailableBalance(toFiniteNumber(dashboardResponse.data.data?.balance));
+        setLoadError("");
+      } catch (error) {
+        console.error("Could not load investment data:", error);
+        setLoadError("Investment data could not be loaded. Please refresh and try again.");
+      }
+    };
+
+    void loadInvestmentData();
   }, []);
 
   // Portfolio Totals Calculation
   const portfolioSummary = useMemo(() => {
-    const totalInvested = activeInvestments.reduce((acc, curr) => acc + curr.investedAmount, 0);
-    const currentValue = activeInvestments.reduce((acc, curr) => acc + curr.currentValue, 0);
+    const totalInvested = activeInvestments.reduce((acc, curr) => acc + toFiniteNumber(curr.investedAmount), 0);
+    const currentValue = activeInvestments.reduce((acc, curr) => acc + toFiniteNumber(curr.currentValue), 0);
     const totalProfit = currentValue - totalInvested;
     const profitPercentage = totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0;
 
@@ -142,13 +175,34 @@ export default function InvestmentsPage() {
   const handleConfirmInvestment = async (e: React.FormEvent) => {
     e.preventDefault();
     const amount = parseFloat(investAmount);
-    if (!selectedAsset || isNaN(amount) || amount <= 0) return;
+    if (!selectedAsset || !Number.isFinite(amount) || amount <= 0) return;
+    if (amount < selectedAsset.minInvestment) {
+      setSubmissionError(`Minimum investment for this plan is $${selectedAsset.minInvestment}.`);
+      return;
+    }
+    if (amount > availableBalance) {
+      setSubmissionError("Investment amount exceeds your available cash balance.");
+      return;
+    }
 
+    setSubmissionError("");
     setIsSubmitting(true);
     try {
       await api.post("/api/portal/investments", { planSlug: selectedAsset.id, amount });
-      const response = await api.get("/api/portal/investments");
-      setActiveInvestments(response.data.data);
+      const [investmentResponse, dashboardResponse] = await Promise.all([
+        api.get("/api/portal/investments"),
+        api.get("/api/portal/dashboard"),
+      ]);
+      setActiveInvestments(investmentResponse.data.data.map((investment: ActiveInvestment & { startDate: string; expectedApy?: number }) => ({
+        ...investment,
+        investedAmount: toFiniteNumber(investment.investedAmount),
+        currentValue: toFiniteNumber(investment.currentValue),
+        totalProfit: toFiniteNumber(investment.totalProfit),
+        profitPercentage: toFiniteNumber(investment.profitPercentage),
+        apy: toFiniteNumber(investment.expectedApy ?? investment.apy),
+        startDate: investment.startDate ? new Date(investment.startDate).toISOString().slice(0, 10) : "",
+      })));
+      setAvailableBalance(toFiniteNumber(dashboardResponse.data.data?.balance));
       await refetchData();
       setIsSuccess(true);
       window.setTimeout(() => {
@@ -159,7 +213,8 @@ export default function InvestmentsPage() {
       }, 1200);
     } catch (error) {
       console.error("Investment request failed:", error);
-      window.alert("Investment could not be completed. Check your available balance and try again.");
+      const responseMessage = isAxiosError(error) ? error.response?.data?.message : null;
+      setSubmissionError(responseMessage || "Investment could not be completed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -214,6 +269,12 @@ export default function InvestmentsPage() {
           </div>
         </div>
 
+        {loadError && (
+          <p role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+            {loadError}
+          </p>
+        )}
+
         {/* ACTIVE PORTFOLIO METRICS SUMMARY BANNER */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-[#061224] border border-slate-800/80 rounded-2xl p-5 relative overflow-hidden">
@@ -222,7 +283,7 @@ export default function InvestmentsPage() {
               <DollarSign size={16} className="text-[#1E6BF3]" />
             </div>
             <p className="text-2xl font-bold text-white">
-              ${portfolioSummary.totalInvested.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              ${Number(portfolioSummary?.totalInvested)?.toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </p>
             <span className="text-[11px] text-slate-500 mt-1 block">Capital Allocated</span>
           </div>
@@ -233,10 +294,10 @@ export default function InvestmentsPage() {
               <TrendingUp size={16} className="text-emerald-400" />
             </div>
             <p className="text-2xl font-bold text-white">
-              ${portfolioSummary.currentValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              ${Number(portfolioSummary.currentValue).toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </p>
             <span className="text-[11px] text-emerald-400 font-semibold mt-1 block">
-              +${portfolioSummary.totalProfit.toLocaleString()} ({portfolioSummary.profitPercentage.toFixed(2)}%)
+              +${Number(portfolioSummary.totalProfit).toLocaleString("en-US", { minimumFractionDigits: 2 })} ({Number(portfolioSummary.profitPercentage).toFixed(2)}%)
             </span>
           </div>
 
@@ -246,7 +307,7 @@ export default function InvestmentsPage() {
               <ArrowUpRight size={16} className="text-[#F3B233]" />
             </div>
             <p className="text-2xl font-bold text-[#F3B233]">
-              +${portfolioSummary.totalProfit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              +${Number(portfolioSummary.totalProfit).toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </p>
             <span className="text-[11px] text-slate-500 mt-1 block">Realized & Un-realized</span>
           </div>
@@ -256,7 +317,7 @@ export default function InvestmentsPage() {
               <span>Active Vaults</span>
               <ShieldCheck size={16} className="text-emerald-400" />
             </div>
-            <p className="text-2xl font-bold text-white">{portfolioSummary.activeCount} Positions</p>
+            <p className="text-2xl font-bold text-white">{Number(portfolioSummary.activeCount).toLocaleString("en-US")} Positions</p>
             <span className="text-[11px] text-emerald-400 font-semibold mt-1 block">All Systems Active</span>
           </div>
         </div>
@@ -346,6 +407,7 @@ export default function InvestmentsPage() {
                             if (foundAsset) {
                               setSelectedAsset(foundAsset);
                               setInvestAmount("500");
+                              setSubmissionError("");
                             }
                           }}
                           className="flex-1 sm:flex-none px-4 py-2 bg-[#1E6BF3] hover:bg-[#1859cc] text-white rounded-xl font-bold text-xs shadow-md shadow-[#1E6BF3]/20 transition-all"
@@ -514,6 +576,7 @@ export default function InvestmentsPage() {
                         onClick={() => {
                           setSelectedAsset(asset);
                           setInvestAmount(asset.minInvestment.toString());
+                          setSubmissionError("");
                         }}
                         className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold bg-[#1E6BF3] hover:bg-[#1859cc] text-white shadow-md shadow-[#1E6BF3]/20 transition-all"
                       >
@@ -550,7 +613,10 @@ export default function InvestmentsPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
             <div className="bg-[#061224] border border-slate-800 rounded-2xl w-full max-w-md p-6 relative shadow-2xl space-y-5">
               <button
-                onClick={() => setSelectedAsset(null)}
+                onClick={() => {
+                  setSelectedAsset(null);
+                  setSubmissionError("");
+                }}
                 className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800/50"
               >
                 <X size={18} />
@@ -580,9 +646,15 @@ export default function InvestmentsPage() {
                     <div className="flex justify-between text-xs text-slate-400">
                       <span>Available Balance:</span>
                       <span className="text-white font-semibold flex items-center gap-1">
-                        <Wallet size={12} /> ${Number(user?.balance || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })} USD
+                        <Wallet size={12} /> ${availableBalance.toLocaleString("en-US", { minimumFractionDigits: 2 })} USD
                       </span>
                     </div>
+
+                    {submissionError && (
+                      <p role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+                        {submissionError}
+                      </p>
+                    )}
 
                     <label className="block">
                       <span className="text-[11px] text-slate-400 font-medium block mb-1">
@@ -593,14 +665,21 @@ export default function InvestmentsPage() {
                         <input
                           type="number"
                           min={selectedAsset.minInvestment}
+                          step="any"
                           value={investAmount}
-                          onChange={(e) => setInvestAmount(e.target.value)}
+                          onChange={(e) => {
+                            setInvestAmount(e.target.value);
+                            setSubmissionError("");
+                          }}
                           required
                           className="w-full bg-[#061224] border border-slate-800 rounded-xl pl-8 pr-16 py-2.5 text-sm text-white font-bold focus:outline-none focus:border-[#1E6BF3]"
                         />
                         <button
                           type="button"
-                          onClick={() => setInvestAmount(selectedAsset.minInvestment.toString())}
+                          onClick={() => {
+                            setInvestAmount(selectedAsset.minInvestment.toString());
+                            setSubmissionError("");
+                          }}
                           className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-[#1E6BF3] hover:underline"
                         >
                           Minimum

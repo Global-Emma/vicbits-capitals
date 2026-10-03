@@ -224,7 +224,7 @@ export default function DashboardLayout({
                 </h2>
                 <span className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse" />
-                  Investor
+                  {user?.role}
                 </span>
               </div>
             </div>

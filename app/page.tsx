@@ -1253,7 +1253,7 @@ export default function VicbitsHomePage() {
                   <div>
                     <h4 className="font-bold text-white text-base">Global Headquarters</h4>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Level 42, One Central Tower, DIFC, Dubai, UAE
+                      1201 N Orange St, Wilmington, DE 19801, USA
                     </p>
                   </div>
                 </div>
@@ -1275,8 +1275,8 @@ export default function VicbitsHomePage() {
                   </div>
                   <div>
                     <h4 className="font-bold text-white text-base">VIP Phone Desk</h4>
-                    <p className="text-xs text-slate-400 mt-0.5">+1 (800) 492-8120 (Toll Free)</p>
-                    <p className="text-xs text-slate-400">+971 4 391 0022 (EMEA Region)</p>
+                    {/* <p className="text-xs text-slate-400 mt-0.5">+1 (803) 843-6119 (Toll Free)</p>
+                    <p className="text-xs text-slate-400">+971 4 391 0022 (EMEA Region)</p> */}
                   </div>
                 </div>
               </div>
@@ -1491,17 +1491,24 @@ export default function VicbitsHomePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-slate-800/80">
             
             <div className="lg:col-span-2 space-y-4">
-              <Link href="#" className="flex items-center gap-2">
-                <Gem className="w-6 h-6 text-[#F3B233]" />
-                <span className="text-xl font-black text-white tracking-wider">
-                  VICBITS <span className="text-[#F3B233]">CAPITALS</span>
-                </span>
-              </Link>
+              <Link href="/" className="flex items-center gap-3 group">
+              <Image
+                src="/logo.png"
+                alt="VicBits Capitals"
+                width={140}
+                height={40}
+                className="object-contain"
+                priority
+              />
+            </Link>
               <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
                 VicBits Capitals is a registered institutional investment platform providing fractional access to premium global assets, crypto liquidity staking, and real estate yields.
               </p>
               <p className="text-xs text-slate-500 italic">
-                Regulated MSB Entity &bull; DIFC Dubai &bull; London &bull; Zurich
+                <strong>USA Registered Office:</strong><br />
+  100 Wall Street, 20th Floor<br />
+  New York, NY 10005<br />
+  United States
               </p>
             </div>
 
@@ -1534,10 +1541,10 @@ export default function VicbitsHomePage() {
                   <Mail size={14} className="text-[#F3B233]" />
                   <span>support@vicbitscapitals.com</span>
                 </li>
-                <li className="flex items-center gap-2">
+                {/* <li className="flex items-center gap-2">
                   <Phone size={14} className="text-[#F3B233]" />
-                  <span>+1 (800) 492-8120</span>
-                </li>
+                  <span>+1 (803) 843-6119</span>
+                </li> */}
                 <li className="pt-2">
                   <button
                     onClick={() => setConsultationModalOpen(true)}
@@ -1566,78 +1573,78 @@ export default function VicbitsHomePage() {
       {}
       {/* MODAL 1: CONSULTATION / VIDEO ADVISORY */}
       <AnimatePresence>
-        {consultationModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4"
+  {consultationModalOpen && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="bg-[#0A192F] border border-slate-700 rounded-3xl p-6 sm:p-8 max-w-lg w-full relative shadow-2xl space-y-6"
+      >
+        <button
+          onClick={() => setConsultationModalOpen(false)}
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white"
+        >
+          <X size={20} />
+        </button>
+
+        <div className="flex items-center gap-3">
+          <div className="p-3 rounded-xl bg-[#F3B233]/20 text-[#F3B233]">
+            <MessageSquare size={24} />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-white">Live Advisory Chat</h3>
+            <p className="text-xs text-slate-400">Chat directly with a licensed VicBits Wealth Officer in real-time.</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-300 space-y-2">
+            <p className="font-semibold text-white">During this live chat session, we can assist you with:</p>
+            <ul className="list-disc list-inside space-y-1 text-slate-400">
+              <li>Custom portfolio allocation based on your target liquidity</li>
+              <li>Wire deposit procedures & tax-friendly structures</li>
+              <li>Proof of physical gold & property title escrow documentation</li>
+            </ul>
+          </div>
+
+          <div className="space-y-3">
+            <input
+              type="text"
+              placeholder="Your Full Name"
+              className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:border-[#F3B233] focus:outline-none"
+            />
+            <input
+              type="email"
+              placeholder="Your Email Address"
+              className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:border-[#F3B233] focus:outline-none"
+            />
+            <textarea
+              rows={3}
+              placeholder="How can we assist you today? (Optional)"
+              className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:border-[#F3B233] focus:outline-none resize-none"
+            />
+          </div>
+
+          <button
+            onClick={() => {
+              alert("Connecting you with an active Wealth Officer... Please wait a moment.");
+              setConsultationModalOpen(false);
+            }}
+            className="w-full py-3.5 rounded-xl text-xs font-bold text-slate-950 bg-linear-to-r from-[#F3B233] to-[#E5A422] shadow-lg shadow-[#F3B233]/20 hover:opacity-90 transition-opacity"
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-[#0A192F] border border-slate-700 rounded-3xl p-6 sm:p-8 max-w-lg w-full relative shadow-2xl space-y-6"
-            >
-              <button
-                onClick={() => setConsultationModalOpen(false)}
-                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white"
-              >
-                <X size={20} />
-              </button>
-
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-[#F3B233]/20 text-[#F3B233]">
-                  <Headphones size={24} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">Book 1-on-1 Consultation</h3>
-                  <p className="text-xs text-slate-400">Speak directly with a licensed VicBits Wealth Officer.</p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-300 space-y-2">
-                  <p className="font-semibold text-white">During this 15-minute call, we will discuss:</p>
-                  <ul className="list-disc list-inside space-y-1 text-slate-400">
-                    <li>Custom portfolio allocation based on your target liquidity</li>
-                    <li>Wire deposit procedures & tax-friendly structures</li>
-                    <li>Proof of physical gold & property title escrow documentation</li>
-                  </ul>
-                </div>
-
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    placeholder="Your Full Name"
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:border-[#F3B233] focus:outline-none"
-                  />
-                  <input
-                    type="email"
-                    placeholder="Your Email Address"
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:border-[#F3B233] focus:outline-none"
-                  />
-                  <input
-                    type="datetime-local"
-                    className="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:border-[#F3B233] focus:outline-none"
-                  />
-                </div>
-
-                <button
-                  onClick={() => {
-                    alert("Consultation request confirmed! Our officer will call you at your requested time.");
-                    setConsultationModalOpen(false);
-                  }}
-                  className="w-full py-3.5 rounded-xl text-xs font-bold text-slate-950 bg-linear-to-r from-[#F3B233] to-[#E5A422] shadow-lg shadow-[#F3B233]/20"
-                >
-                  Confirm Advisory Booking
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+            Start Live Chat Now
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
       {/* MODAL 2: QUICK DEPOSIT / PLAN DEPOSIT */}
       <AnimatePresence>
         {depositModalOpen && (

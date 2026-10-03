@@ -41,7 +41,7 @@ export default function SignInModal({
   onSwitchToSignUp,
 }: SignInModalProps) {
   const router = useRouter();
-  const { updateUserState } = useApp();
+  const { updateUserState, user } = useApp();
   // Modal Navigation View: 'login' | 'forgot_password' | 'success'
   const [view, setView] = useState<"login" | "forgot_password" | "success">("login");
 
@@ -75,7 +75,7 @@ export default function SignInModal({
         localStorage.setItem("accessToken", JSON.stringify(accessToken));
         localStorage.setItem("login", "true");
         updateUserState(userData);
-        router.push("/user-dashboard");
+        router.push(user?.role === "investor" ? "/user-dashboard" : "/admin-dashboard");
 
         setView("success");
 
@@ -406,7 +406,7 @@ export default function SignInModal({
                   </div>
                 </div>
 
-                <Link href={"/user-dashboard"}>
+                <Link href={user?.role === "investor" ? "/user-dashboard" : "/admin-dashboard"}>
                    <button
                   onClick={handleClose}
                   className="w-full py-3.5 rounded-xl font-bold text-sm text-slate-950 bg-gradient-to-r from-[#F3B233] to-[#E5A422] shadow-xl shadow-[#F3B233]/25 hover:brightness-110 transition-all cursor-pointer"
