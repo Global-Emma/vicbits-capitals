@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import { isAxiosError } from "axios";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../utils/axios";
 import {
@@ -16,6 +18,8 @@ import {
   KeyRound,
   ArrowLeft,
 } from "lucide-react";
+import Link from "next/link";
+import { useApp } from "@/utils/useApp";
 
 type SignInUserData = {
   email: string;
@@ -36,6 +40,8 @@ export default function SignInModal({
   onSuccess,
   onSwitchToSignUp,
 }: SignInModalProps) {
+  const router = useRouter();
+  const { updateUserState } = useApp();
   // Modal Navigation View: 'login' | 'forgot_password' | 'success'
   const [view, setView] = useState<"login" | "forgot_password" | "success">("login");
 
@@ -68,6 +74,8 @@ export default function SignInModal({
         const { accessToken, user: userData } = response.data;
         localStorage.setItem("accessToken", JSON.stringify(accessToken));
         localStorage.setItem("login", "true");
+        updateUserState(userData);
+        router.push("/user-dashboard");
 
         setView("success");
 
@@ -79,8 +87,10 @@ export default function SignInModal({
           });
         }
       }
-    } catch (err: any) {
-      const message = err?.response?.data?.message || "Invalid email or password. Please try again.";
+    } catch (err: unknown) {
+      const message = isAxiosError(err)
+        ? err.response?.data?.message || "Invalid email or password. Please try again."
+        : "Invalid email or password. Please try again.";
       setErrorMessage(message);
     } finally {
       setIsLoading(false);
@@ -98,22 +108,12 @@ export default function SignInModal({
         email: email.trim().toLowerCase(),
       });
       setResetEmailSent(true);
-    } catch (err: any) {
-      setErrorMessage(err?.response?.data?.message || "Failed to send reset email. Please try again.");
+    } catch (err: unknown) {
+      setErrorMessage(isAxiosError(err)
+        ? err.response?.data?.message || "Failed to send reset email. Please try again."
+        : "Failed to send reset email. Please try again.");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // Trigger Success State
-  const triggerSuccess = () => {
-    setView("success");
-    if (onSuccess) {
-      onSuccess({
-        email,
-        rememberMe,
-        loggedInAt: new Date().toISOString(),
-      });
     }
   };
 
@@ -406,12 +406,14 @@ export default function SignInModal({
                   </div>
                 </div>
 
-                <button
+                <Link href={"/user-dashboard"}>
+                   <button
                   onClick={handleClose}
                   className="w-full py-3.5 rounded-xl font-bold text-sm text-slate-950 bg-gradient-to-r from-[#F3B233] to-[#E5A422] shadow-xl shadow-[#F3B233]/25 hover:brightness-110 transition-all cursor-pointer"
                 >
                   Enter Investor Dashboard
                 </button>
+                </Link>
               </motion.div>
             )}
           </motion.div>

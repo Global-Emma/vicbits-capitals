@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { isAxiosError } from "axios";
+import { useApp } from "@/utils/useApp";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../utils/axios";
 import {
@@ -75,7 +77,15 @@ const slideVariants = {
   }),
 };
 
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (isAxiosError<{ message?: string }>(error)) {
+    return error.response?.data?.message || fallback;
+  }
+  return fallback;
+};
+
 export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalProps) {
+  const { updateUserState } = useApp();
   // Wizard & animation state
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState(1);
@@ -84,6 +94,7 @@ export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalP
 
   // OTP state
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [developmentOtp, setDevelopmentOtp] = useState("");
   const [resendTimer, setResendTimer] = useState(60);
   const [isResending, setIsResending] = useState(false);
 
@@ -146,12 +157,13 @@ export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalP
     setIsResending(true);
 
     try {
-      await api.post("/api/auth/send-otp", {
+      const response = await api.post("/api/auth/send-otp", {
         email: formData.email.trim().toLowerCase(),
       });
+      setDevelopmentOtp(response.data.devOtp || "");
       setResendTimer(60);
-    } catch (error: any) {
-      alert(error?.response?.data?.message || "Unable to resend the verification code right now.");
+    } catch (error: unknown) {
+      alert(getErrorMessage(error, "Unable to resend the verification code right now."));
     } finally {
       setIsResending(false);
     }
@@ -232,6 +244,7 @@ export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalP
         const { accessToken, user: userData } = response.data;
         localStorage.setItem("accessToken", JSON.stringify(accessToken));
         localStorage.setItem("login", "true");
+        updateUserState(userData);
 
         if (onSuccess) {
           await onSuccess({
@@ -245,9 +258,9 @@ export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalP
       }
 
       nextStep();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Registration error:", error);
-      alert(error?.response?.data?.message || "Unable to create your account. Please try again.");
+      alert(getErrorMessage(error, "Unable to create your account. Please try again."));
     } finally {
       setIsSubmitting(false);
     }
@@ -330,12 +343,13 @@ export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalP
                       e.preventDefault();
 
                       try {
-                        await api.post("/api/auth/send-otp", {
+                        const response = await api.post("/api/auth/send-otp", {
                           email: formData.email.trim().toLowerCase(),
                         });
+                        setDevelopmentOtp(response.data.devOtp || "");
                         nextStep();
-                      } catch (error: any) {
-                        alert(error?.response?.data?.message || "Unable to send the verification code. Please try again.");
+                      } catch (error: unknown) {
+                        alert(getErrorMessage(error, "Unable to send the verification code. Please try again."));
                       }
                     }}
                     className="space-y-4 text-xs"
@@ -502,6 +516,7 @@ export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalP
                           {formData.email || "your email address"}
                         </span>
                       </p>
+                      {developmentOtp && <p className="text-amber-300">Development OTP: <strong className="font-mono">{developmentOtp}</strong></p>}
                     </div>
 
                     {/* 6 Digit OTP Inputs */}
@@ -569,8 +584,8 @@ export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalP
                               otp: code,
                             });
                             nextStep();
-                          } catch (error: any) {
-                            alert(error?.response?.data?.message || "The verification code is invalid or expired.");
+                          } catch (error: unknown) {
+                            alert(getErrorMessage(error, "The verification code is invalid or expired."));
                           }
                         }}
                         className="w-2/3 py-3.5 rounded-xl font-bold text-sm text-slate-950 bg-gradient-to-r from-[#F3B233] to-[#E5A422] shadow-lg shadow-[#F3B233]/20 hover:brightness-110 flex items-center justify-center gap-2 transition-all cursor-pointer"
@@ -700,7 +715,7 @@ export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalP
                           onChange={handleInputChange}
                           className="w-full px-3 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 focus:border-[#F3B233] focus:outline-none transition-all"
                         >
-                          <option value="$1,000 - $10,000">$500 - $1,000</option>
+                          <option value="$500 - $1,000">$500 - $1,000</option>
                           <option value="$1,000 - $10,000">$1,000 - $10,000</option>
                           <option value="$10,000 - $50,000">$10,000 - $50,000</option>
                           <option value="$50,000 - $250,000">$50,000 - $250,000</option>

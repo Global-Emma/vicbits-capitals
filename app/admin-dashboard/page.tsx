@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import {
   LayoutDashboard,
@@ -24,6 +25,8 @@ import {
   Coins,
   ChevronRight,
 } from "lucide-react";
+import api from "@/utils/axios";
+import { useApp } from "@/utils/useApp";
 
 // Types
 interface UserRecord {
@@ -34,12 +37,21 @@ interface UserRecord {
   status: "Active" | "Inactive" | "Pending";
 }
 
-interface DepositRecord {
+interface PendingRequest {
   id: string;
   user: string;
-  amount: string;
-  asset: "BTC" | "USDT" | "ETH";
-  status: "Confirming" | "Pending" | "Completed";
+  amount: number;
+  asset: string;
+  status: string;
+  eventType: "deposit" | "withdrawal";
+  reference: string;
+  paymentMethod?: string;
+}
+
+interface AdminOverview {
+  metrics: { totalUsers: number; totalDeposits: number; totalWithdrawals: number; activeInvestments: number };
+  recentUsers: UserRecord[];
+  pendingRequests: PendingRequest[];
 }
 
 // Framer Motion Animation Variants
@@ -63,10 +75,33 @@ const itemVariants: Variants = {
 };
 
 export default function VicbitsAdminDashboard() {
+  const { user, logout, loading } = useApp();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("Admin Dashboard");
   const [timeframe, setTimeframe] = useState("Last 30 Days");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [overview, setOverview] = useState<AdminOverview | null>(null);
+
+  useEffect(() => {
+    if (!loading && user?.role !== "admin") router.replace("/user-dashboard");
+  }, [loading, router, user?.role]);
+
+  useEffect(() => {
+    api.get("/api/portal/admin/overview")
+      .then(({ data }) => setOverview(data.data))
+      .catch((error) => console.error("Could not load admin overview:", error));
+  }, []);
+
+  const reviewRequest = async (id: string, status: "Completed" | "Failed") => {
+    try {
+      await api.patch(`/api/portal/requests/${id}/status`, { status });
+      const { data } = await api.get("/api/portal/admin/overview");
+      setOverview(data.data);
+    } catch (error) {
+      console.error("Could not review request:", error);
+    }
+  };
 
   const navItems = [
     { name: "Admin Dashboard", icon: LayoutDashboard },
@@ -80,52 +115,35 @@ export default function VicbitsAdminDashboard() {
     { name: "Reports", icon: FileText },
   ];
 
-  // Data matching the uploaded UI screenshot
-  const recentUsers: UserRecord[] = [
-    { id: "1", name: "John Doe", email: "john@example.com", plan: "Premium", status: "Active" },
-    { id: "2", name: "Sarah Okafor", email: "sarah@gmail.com", plan: "Growth", status: "Active" },
-    { id: "3", name: "Michael Brown", email: "mike@gmail.com", plan: "Starter", status: "Active" },
-    { id: "4", name: "Emeka Nwa", email: "emeka@gmail.com", plan: "Growth", status: "Active" },
-    { id: "5", name: "Blessing Uche", email: "blessing@gmail.com", plan: "Premium", status: "Active" },
-  ];
-
-  const pendingDeposits: DepositRecord[] = [
-    { id: "d1", user: "David K", amount: "$500", asset: "BTC", status: "Confirming" },
-    { id: "d2", user: "Chiemeka A", amount: "$1,000", asset: "USDT", status: "Pending" },
-    { id: "d3", user: "Peter S", amount: "$250", asset: "ETH", status: "Pending" },
-    { id: "d4", user: "Ngozi E", amount: "$750", asset: "BTC", status: "Pending" },
-    { id: "d5", user: "James T", amount: "$300", asset: "USDT", status: "Confirming" },
-  ];
-
   const metrics = [
     {
       title: "Total Users",
-      value: "1,248",
-      change: "+12%",
+      value: (overview?.metrics.totalUsers || 0).toLocaleString(),
+      change: "",
       isPositive: true,
       icon: UserCheck,
       iconBg: "bg-blue-500/15 text-blue-400",
     },
     {
       title: "Total Deposits",
-      value: "$25,430",
-      change: "+8.4%",
+      value: `$${(overview?.metrics.totalDeposits || 0).toLocaleString()}`,
+      change: "",
       isPositive: true,
       icon: Wallet,
       iconBg: "bg-emerald-500/15 text-emerald-400",
     },
     {
       title: "Total Withdrawals",
-      value: "$12,180",
-      change: "+15.2%",
+      value: `$${(overview?.metrics.totalWithdrawals || 0).toLocaleString()}`,
+      change: "",
       isPositive: true,
       icon: ShieldAlert,
       iconBg: "bg-indigo-500/15 text-indigo-400",
     },
     {
       title: "Active Investments",
-      value: "892",
-      change: "+12.5%",
+      value: (overview?.metrics.activeInvestments || 0).toLocaleString(),
+      change: "",
       isPositive: true,
       icon: Coins,
       iconBg: "bg-amber-500/15 text-amber-400",
@@ -206,7 +224,7 @@ export default function VicbitsAdminDashboard() {
 
         {/* LOGOUT */}
         <div className="p-4 border-t border-slate-800/60">
-          <button className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-red-400 hover:bg-slate-800/40 rounded-xl transition-colors">
+          <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-400 hover:text-red-400 hover:bg-slate-800/40 rounded-xl transition-colors">
             <LogOut size={18} />
             <span>Log Out</span>
           </button>
@@ -259,10 +277,10 @@ export default function VicbitsAdminDashboard() {
               />
               <div className="hidden sm:block text-left">
                 <h2 className="text-xs font-bold text-white leading-snug">
-                  Admin
+                  {user?.firstName || "Admin"}
                 </h2>
                 <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
-                  Super Admin
+                  {user?.role === "admin" ? "Administrator" : ""}
                   <ChevronDown size={12} className="text-slate-500" />
                 </span>
               </div>
@@ -338,7 +356,7 @@ export default function VicbitsAdminDashboard() {
             })}
           </motion.div>
 
-          {/* TABLES SECTION: RECENT USERS & PENDING DEPOSITS */}
+            {/* TABLES SECTION: RECENT USERS & PENDING REQUESTS */}
           <motion.div
             variants={containerVariants}
             initial="hidden"
@@ -370,7 +388,7 @@ export default function VicbitsAdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/40">
-                      {recentUsers.map((user) => (
+                      {(overview?.recentUsers || []).map((user) => (
                         <tr
                           key={user.id}
                           className="hover:bg-slate-800/30 transition-colors"
@@ -410,8 +428,8 @@ export default function VicbitsAdminDashboard() {
             >
               <div>
                 <div className="flex items-center justify-between pb-4 border-b border-slate-800/80">
-                  <h3 className="text-sm font-bold text-white">
-                    Pending Deposits
+                    <h3 className="text-sm font-bold text-white">
+                    Pending Requests
                   </h3>
                   <button className="text-[11px] font-bold text-[#1E6BF3] hover:underline flex items-center gap-0.5">
                     <span>View All</span>
@@ -427,10 +445,11 @@ export default function VicbitsAdminDashboard() {
                         <th className="py-3 px-2">Amount</th>
                         <th className="py-3 px-2">Asset</th>
                         <th className="py-3 px-2 text-right">Status</th>
+                        <th className="py-3 px-2 text-right">Review</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/40">
-                      {pendingDeposits.map((dep) => (
+                      {(overview?.pendingRequests || []).map((dep) => (
                         <tr
                           key={dep.id}
                           className="hover:bg-slate-800/30 transition-colors"
@@ -439,21 +458,27 @@ export default function VicbitsAdminDashboard() {
                             {dep.user}
                           </td>
                           <td className="py-3.5 px-2 font-bold text-slate-200">
-                            {dep.amount}
+                            ${dep.amount.toLocaleString()}
                           </td>
                           <td className="py-3.5 px-2 text-slate-400 font-semibold">
-                            {dep.asset}
+                            {dep.eventType === "deposit" ? dep.asset : dep.paymentMethod || "Withdrawal"}
                           </td>
                           <td className="py-3.5 px-2 text-right">
                             <span
                               className={`px-2.5 py-1 rounded-full text-[10px] font-bold border inline-block ${
-                                dep.status === "Confirming"
+                                dep.status === "Completed"
                                   ? "bg-blue-500/10 text-blue-400 border-blue-500/30"
                                   : "bg-amber-500/10 text-amber-400 border-amber-500/30"
                               }`}
                             >
-                              {dep.status}
+                              {dep.eventType} · {dep.status}
                             </span>
+                          </td>
+                          <td className="py-3.5 px-2 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button onClick={() => reviewRequest(dep.id, "Completed")} className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300">Approve</button>
+                              <button onClick={() => reviewRequest(dep.id, "Failed")} className="text-[10px] font-bold text-rose-400 hover:text-rose-300">Reject</button>
+                            </div>
                           </td>
                         </tr>
                       ))}

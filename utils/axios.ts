@@ -1,18 +1,16 @@
 import axios from 'axios';
 
-// Detect environment variable for Next.js, Vite, or local fallback
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.VITE_API_URL ||
   process.env.NEXT_PUBLIC_VITE_API_URL ||
-  "http://localhost:3001";
+  'http://localhost:3001';
 
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true, // Required for HTTP-Only refresh cookies
+  withCredentials: true,
 });
 
-// Variables to handle concurrent request queuing during token refresh
 let isRefreshing = false;
 
 type FailedQueueItem = {
@@ -34,21 +32,32 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
-// ==========================================
-// REQUEST INTERCEPTOR
-// ==========================================
+const getStoredAccessToken = () => {
+  if (typeof window === 'undefined') return null;
+
+  const rawToken = localStorage.getItem('accessToken');
+  if (!rawToken) return null;
+
+  try {
+    const parsedToken = JSON.parse(rawToken);
+    return typeof parsedToken === 'string' ? parsedToken : null;
+  } catch {
+    return rawToken;
+  }
+};
+
+const redirectToSignIn = () => {
+  if (typeof window === 'undefined') return;
+
+  const currentPath = window.location.pathname;
+  if (currentPath === '/sign-in' || currentPath === '/login') return;
+
+  window.location.href = '/';
+};
+
 api.interceptors.request.use(
   (config) => {
-    const rawToken = localStorage.getItem('accessToken');
-    let accessToken = null;
-
-    if (rawToken) {
-      try {
-        accessToken = JSON.parse(rawToken);
-      } catch {
-        accessToken = rawToken; // Safe fallback if stored as unquoted string
-      }
-    }
+    const accessToken = getStoredAccessToken();
 
     if (accessToken) {
       config.headers = config.headers || {};
@@ -57,90 +66,83 @@ api.interceptors.request.use(
 
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// ==========================================
-// RESPONSE INTERCEPTOR (Auto Token Refresh)
-// ==========================================
 api.interceptors.response.use(
   (response) => response,
-
   async (error) => {
     const originalRequest = error.config;
 
-    // Check if error is 401 Unauthorized (and not from auth endpoints themselves)
-    const isUnauthorized =
-      error.response?.status === 401 &&
-      !originalRequest.url?.includes('/auth/refresh-token') &&
-      !originalRequest.url?.includes('/auth/login');
-
-    if (isUnauthorized && !originalRequest._retry) {
-      // 1. If a refresh request is ALREADY in progress, queue subsequent calls
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            return api(originalRequest);
-          })
-          .catch((err) => Promise.reject(err));
-      }
-
-      originalRequest._retry = true;
-      isRefreshing = true;
-
-      try {
-        // 2. Perform token refresh call using bare axios to avoid interceptor recursion
-        const response = await axios.post(
-          `${API_URL}/api/auth/refresh-token`,
-          {},
-          { withCredentials: true }
-        );
-
-        const newAccessToken = response.data.accessToken;
-
-        // Save new token to local storage
-        localStorage.setItem("accessToken", JSON.stringify(newAccessToken));
-        localStorage.setItem("login", "true");
-
-        // Update Authorization header for original failed request
-        originalRequest.headers = originalRequest.headers || {};
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-
-        // 3. Resolve all queued requests with the new token
-        processQueue(null, newAccessToken);
-
-        // 4. Retry original request
-        return api(originalRequest);
-      } catch (refreshError) {
-        // Reject all queued requests if refresh fails
-        processQueue(refreshError, null);
-
-        // Clean up invalid session data
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("login");
-
-        const errorMessage =
-          (refreshError as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-          "Session expired. Please log in again.";
-        localStorage.setItem("error", errorMessage);
-
-        // Optional: Trigger global redirect to login page
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
-
-        return Promise.reject(refreshError);
-      } finally {
-        isRefreshing = false;
-      }
+    if (!originalRequest) {
+      return Promise.reject(error);
     }
 
-    return Promise.reject(error);
+    const requestUrl = originalRequest.url || '';
+    const isAuthRequest = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/refresh-token');
+    const isUnauthorized = error.response?.status === 401 && !isAuthRequest;
+
+    if (!isUnauthorized || originalRequest._retry) {
+      return Promise.reject(error);
+    }
+
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      })
+        .then((token) => {
+          if (!token) {
+            return Promise.reject(new Error('Token refresh failed.'));
+          }
+
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        })
+        .catch((err) => Promise.reject(err));
+    }
+
+    originalRequest._retry = true;
+    isRefreshing = true;
+
+    try {
+      const response = await axios.post(
+        `${API_URL}/api/auth/refresh-token`,
+        {},
+        { withCredentials: true }
+      );
+
+      const newAccessToken = response?.data?.accessToken;
+
+      if (!newAccessToken) {
+        throw new Error('Refresh token succeeded but no new access token was returned.');
+      }
+
+      localStorage.setItem('accessToken', JSON.stringify(newAccessToken));
+      localStorage.setItem('login', 'true');
+
+      originalRequest.headers = originalRequest.headers || {};
+      originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+      processQueue(null, newAccessToken);
+      return api(originalRequest);
+    } catch (refreshError) {
+      processQueue(refreshError, null);
+
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('login');
+
+      const errorMessage =
+        (refreshError as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Session expired. Please sign in again.';
+
+      localStorage.setItem('error', errorMessage);
+      redirectToSignIn();
+
+      return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
+    }
   }
 );
 

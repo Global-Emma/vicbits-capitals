@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -26,23 +27,17 @@ import {
   Building2,
   Sparkles,
 } from "lucide-react";
+import api from "@/utils/axios";
+import { useApp } from "@/utils/useApp";
 
 // Types
-type TransactionType =
-  | "Deposit (BTC)"
-  | "Investment (Real Estate)"
-  | "Return"
-  | "Investment (Gold)"
-  | "Withdrawal"
-  | "Deposit (USDT)";
-
-type TransactionStatus = "Confirmed" | "Completed" | "Pending" | "Credited";
+type TransactionStatus = "Completed" | "Pending" | "Failed";
 
 interface Transaction {
   id: string;
   date: string;
-  type: TransactionType;
-  category: "deposit" | "investment" | "return" | "withdrawal";
+  type: string;
+  category: string;
   amount: number; // positive for credit, negative for debit
   status: TransactionStatus;
   txHash?: string;
@@ -71,72 +66,31 @@ export default function VicBitsTransactionHistory() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeTxModal, setActiveTxModal] = useState<Transaction | null>(null);
 
-  // Exact data pre-populated from your screenshot
-  const transactions: Transaction[] = [
-    {
-      id: "tx-101",
-      date: "Apr 18, 2026",
-      type: "Deposit (BTC)",
-      category: "deposit",
-      amount: 1000.0,
-      status: "Confirmed",
-      txHash: "0x8f2d...9a12",
-      reference: "DEP-20260418-01",
-      fee: "$0.00",
-    },
-    {
-      id: "tx-102",
-      date: "Apr 15, 2026",
-      type: "Investment (Real Estate)",
-      category: "investment",
-      amount: -2500.0,
-      status: "Completed",
-      reference: "INV-20260415-88",
-      fee: "$0.00",
-    },
-    {
-      id: "tx-103",
-      date: "Apr 12, 2026",
-      type: "Return",
-      category: "return",
-      amount: 180.0,
-      status: "Credited",
-      reference: "RET-20260412-04",
-      fee: "$0.00",
-    },
-    {
-      id: "tx-104",
-      date: "Apr 10, 2026",
-      type: "Investment (Gold)",
-      category: "investment",
-      amount: -1500.0,
-      status: "Completed",
-      reference: "INV-20260410-12",
-      fee: "$0.00",
-    },
-    {
-      id: "tx-105",
-      date: "Apr 8, 2026",
-      type: "Withdrawal",
-      category: "withdrawal",
-      amount: -850.0,
-      status: "Pending",
-      txHash: "0x1b4c...e770",
-      reference: "WTH-20260408-09",
-      fee: "$2.50",
-    },
-    {
-      id: "tx-106",
-      date: "Apr 5, 2026",
-      type: "Deposit (USDT)",
-      category: "deposit",
-      amount: 1000.0,
-      status: "Confirmed",
-      txHash: "0x3e9a...f411",
-      reference: "DEP-20260405-02",
-      fee: "$0.00",
-    },
-  ];
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const { user, loading } = useApp();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+  useEffect(() => {
+    if (!loading && user?.role !== "admin") router.replace("/user-dashboard");
+  }, [loading, router, user?.role]);
+
+  useEffect(() => {
+    if (!params.id) return;
+    api.get(`/api/portal/admin/users/${params.id}`).then(({ data }) => {
+      setTransactions(data.data.transactions.map((item: { id: string; date: string; eventType: string; asset: string; description: string; amount: number; type: string; status: TransactionStatus; reference: string; fee: number; externalReference?: string }) => ({
+        id: item.id,
+        date: new Date(item.date).toLocaleString(),
+        type: item.description,
+        category: item.eventType,
+        amount: item.type === "Income" || item.type === "Refund" ? item.amount : -item.amount,
+        status: item.status,
+        reference: item.reference,
+        fee: `$${item.fee.toFixed(2)}`,
+        txHash: item.externalReference,
+      })));
+    }).catch((error) => console.error("Could not load account activity:", error));
+  }, [params.id]);
 
   // Filtering Logic
   const filteredTransactions = useMemo(() => {
@@ -168,7 +122,7 @@ export default function VicBitsTransactionHistory() {
   ];
 
   // Helper to render type icons matching the image style
-  const renderTypeIcon = (type: TransactionType) => {
+  const renderTypeIcon = (type: string) => {
     switch (type) {
       case "Deposit (BTC)":
         return (
@@ -218,9 +172,7 @@ export default function VicBitsTransactionHistory() {
   // Helper to render status badges
   const renderStatusBadge = (status: TransactionStatus) => {
     switch (status) {
-      case "Confirmed":
       case "Completed":
-      case "Credited":
         return (
           <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1">
             <CheckCircle2 size={10} />
@@ -234,6 +186,8 @@ export default function VicBitsTransactionHistory() {
             {status}
           </span>
         );
+      case "Failed":
+        return <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">Failed</span>;
     }
   };
 

@@ -8,8 +8,6 @@ import { AppContext } from "./AppContext";
 
 const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [services, setServices] = useState([]);
-  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true); // Default to true while initial data fetches
   const [error, setError] = useState(null);
 
@@ -21,41 +19,22 @@ const AppProvider = ({ children }) => {
   const fetchInitialData = useCallback(async () => {
     setLoading(true);
     setError(null);
-
     const token = localStorage.getItem("accessToken");
+    let profileResponse = null;
 
     try {
-      // 1. Prepare parallel API requests
-      const requests = [
-        api.get("/api/services").catch((err) => ({ error: err, type: "services" })),
-        api.get("/api/projects").catch((err) => ({ error: err, type: "projects" })),
-      ];
-
       // Only fetch user profile if an access token exists in storage
       if (token) {
-        requests.push(
-          api.get("/api/auth/profile").catch((err) => ({ error: err, type: "profile" }))
-        );
+          profileResponse = await api.get("/api/auth/profile");
       }
 
-      const results = await Promise.all(requests);
-
-      // Process Services Response
-      if (results[0] && !results[0].error) {
-        setServices(results[0].data?.data || []);
-      }
-
-      // Process Projects Response
-      if (results[1] && !results[1].error) {
-        setProjects(results[1].data?.data || []);
-      }
 
       // Process User Profile Response
-      if (results[2]) {
-        if (!results[2].error) {
-          setUser(results[2].data?.data || null);
+      if (profileResponse) {
+        if (!profileResponse.error) {
+          setUser(profileResponse.data?.data || null);
         } else {
-          // If token was invalid or expired during initial check
+          //If token was invalid or expired during initial check
           localStorage.removeItem("accessToken");
           localStorage.removeItem("login");
           setUser(null);
@@ -139,7 +118,7 @@ const AppProvider = ({ children }) => {
       setLoading(false);
 
       // Navigate to login page
-      router.push("/sign-in");
+      router.push("/");
     }
   };
 
@@ -152,8 +131,6 @@ const AppProvider = ({ children }) => {
     <AppContext.Provider
       value={{
         user,
-        projects,
-        services,
         loading,
         error,
         login,
