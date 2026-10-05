@@ -413,7 +413,7 @@ export default function VicbitsHomePage() {
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    setSignUpModalOpen(true);
+                    setSignInModalOpen(true);
                   }}
                   className="w-full py-3 rounded-xl text-sm font-bold text-slate-200 border border-slate-700 bg-slate-900"
                 >
@@ -422,7 +422,7 @@ export default function VicbitsHomePage() {
                 <button
                   onClick={() => {
                     
-                    setSignInModalOpen(true);
+                    setSignUpModalOpen(true);
                   }}
                   className="w-full py-3 rounded-xl text-sm font-bold text-slate-950 bg-linear-to-r from-[#F3B233] to-[#E5A422] shadow-lg shadow-[#F3B233]/20"
                 >
