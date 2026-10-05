@@ -85,7 +85,7 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalProps) {
+export default function SignUpModal({ isOpen, onClose, onSuccess, onSwitchToSignIn }: SignUpModalProps) {
   const { updateUserState } = useApp();
   // Wizard & animation state
   const [step, setStep] = useState(1);
