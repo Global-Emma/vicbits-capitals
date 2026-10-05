@@ -1725,6 +1725,10 @@ export default function VicbitsHomePage() {
             key="signup-modal"
             isOpen={signUpModalOpen}
             onClose={() => setSignUpModalOpen(false)}
+            onSwitchToSignIn={() => {
+              setSignUpModalOpen(false);
+              setSignInModalOpen(true);
+            }}
           />
 
           <SignInModal
