@@ -58,7 +58,8 @@ type SignUpSuccessPayload = {
 interface SignUpModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: (payload: SignUpSuccessPayload) => void | Promise<void>;
+  onSuccess?: (payload: SignUpSuccessPayload) => void | Promise<void>
+onSwitchToSignIn: () => void;
 }
 
 // Slide Animation Variants
@@ -490,6 +491,20 @@ export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalP
                     </div>
                   </motion.form>
                 )}
+
+                {/* Switch to Sign In */}
+                <div className="text-center pt-4 border-t border-slate-800/80 text-slate-400">
+                  <span>{"Have an investor account?"} </span>
+                  <button
+                    type="button"
+                    onClick={() => onSwitchToSignIn()}
+                    className="text-[#F3B233] font-bold hover:underline cursor-pointer"
+                  >
+                    Create Account
+                  </button>
+                </div>
+              </motion.form>
+            )}
 
                 {/* STEP 2: CODE VERIFICATION (OTP) */}
                 {step === 2 && (
