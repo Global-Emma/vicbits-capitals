@@ -132,9 +132,9 @@ export default function WithdrawalsPage() {
   const handleFinalConfirm = async () => {
     setIsSubmitting(true);
     const destination = payoutMethod === "bank"
-      ? `${bankName} - ${accountHolder} - account ending ${accountNumber.slice(-4)}${swiftCode ? ` - ${swiftCode}` : ""}`
+      ? `Bank: ${bankName}; Beneficiary: ${accountHolder}; Account: ${accountNumber}${swiftCode ? `; SWIFT/BIC: ${swiftCode}` : ""}`
       : payoutMethod === "crypto"
-        ? `${cryptoAsset} (${cryptoNetwork}): ${walletAddress}`
+        ? `Asset: ${cryptoAsset}; Network: ${cryptoNetwork}; Wallet address: ${walletAddress}`
         : selectedCard;
     try {
       const { data } = await api.post("/api/portal/withdrawals", {

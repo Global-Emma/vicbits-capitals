@@ -31,7 +31,7 @@ interface SignInModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (userData: SignInUserData) => void;
-  onSwitchToSignUp?: () => void;
+  onSwitchToSignUp: () => void;
 }
 
 export default function SignInModal({
@@ -275,10 +275,7 @@ export default function SignInModal({
                   <span>{"Don't have an investor account?"} </span>
                   <button
                     type="button"
-                    onClick={() => {
-                      handleClose();
-                      if (onSwitchToSignUp) onSwitchToSignUp();
-                    }}
+                    onClick={() => onSwitchToSignUp()}
                     className="text-[#F3B233] font-bold hover:underline cursor-pointer"
                   >
                     Create Account

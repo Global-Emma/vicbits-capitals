@@ -28,7 +28,18 @@ interface Investor {
   lastName: string;
   email: string;
   balance: number | string;
+  totalReturns?: number | string;
   totalInvested?: number | string;
+  dob?: string;
+  phone?: string;
+  country?: string;
+  streetAddress?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  investorType?: string;
+  targetCapital?: string;
+  kycStatus?: string;
   createdAt: string;
 }
 
@@ -42,8 +53,10 @@ interface Transaction {
   amount: number;
   status: string;
   date: string;
+  fee?: number;
   asset?: string;
   paymentMethod?: string;
+  destination?: string;
   externalReference?: string;
 }
 
@@ -127,6 +140,7 @@ export default function AdminManagementSection({ section }: { section: Section }
   const [selectedInvestor, setSelectedInvestor] = useState<Investor | null>(null);
   const [userActivity, setUserActivity] = useState<{ transactions: Transaction[]; investments: AdminInvestment[] } | null>(null);
   const [balanceForm, setBalanceForm] = useState({ direction: "credit", amount: "", reason: "" });
+  const [investorForm, setInvestorForm] = useState({ firstName: "", lastName: "", email: "", dob: "", phone: "", country: "", streetAddress: "", city: "", state: "", postalCode: "", investorType: "", targetCapital: "", kycStatus: "unverified", totalInvested: "0", totalReturns: "0" });
   const [planForm, setPlanForm] = useState({ name: "", slug: "", symbol: "", category: "crypto", price: "0", expectedApy: "0", minInvestment: "", riskLevel: "Medium", description: "", tags: "" });
   const [editingPlanId, setEditingPlanId] = useState("");
   const [methodForm, setMethodForm] = useState({ asset: "", name: "", network: "", address: "", minimumUsdAmount: "0", confirmations: "1" });
@@ -181,7 +195,8 @@ export default function AdminManagementSection({ section }: { section: Section }
   }, [section]);
 
   useEffect(() => {
-    void loadData();
+    const timeoutId = window.setTimeout(() => void loadData(), 0);
+    return () => window.clearTimeout(timeoutId);
   }, [loadData]);
 
   const filteredInvestors = useMemo(() => investors.filter((investor) => (
@@ -202,8 +217,48 @@ export default function AdminManagementSection({ section }: { section: Section }
       const { data } = await api.get(`/api/portal/admin/users/${investor._id}`);
       setUserActivity(data.data);
       setSelectedInvestor(data.data.user);
+      setInvestorForm({
+        firstName: data.data.user.firstName || "",
+        lastName: data.data.user.lastName || "",
+        email: data.data.user.email || "",
+        dob: data.data.user.dob ? new Date(data.data.user.dob).toISOString().slice(0, 10) : "",
+        phone: data.data.user.phone || "",
+        country: data.data.user.country || "",
+        streetAddress: data.data.user.streetAddress || "",
+        city: data.data.user.city || "",
+        state: data.data.user.state || "",
+        postalCode: data.data.user.postalCode || "",
+        investorType: data.data.user.investorType || "",
+        targetCapital: data.data.user.targetCapital || "",
+        kycStatus: data.data.user.kycStatus || "unverified",
+        totalInvested: String(data.data.user.totalInvested ?? 0),
+        totalReturns: String(data.data.user.totalReturns ?? 0),
+      });
     } catch (failure) {
       setError(errorMessage(failure));
+    }
+  };
+
+  const saveInvestor = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedInvestor) return;
+    setBusyId(selectedInvestor._id);
+    setError("");
+    setNotice("");
+    try {
+      const { data } = await api.put(`/api/portal/admin/users/${selectedInvestor._id}`, {
+        ...investorForm,
+        totalInvested: Number(investorForm.totalInvested),
+        totalReturns: Number(investorForm.totalReturns),
+      });
+      setSelectedInvestor(data.data);
+      setInvestors((current) => current.map((investor) => investor._id === data.data._id ? data.data : investor));
+      setNotice("Investor account updated.");
+      await selectInvestor(data.data);
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      setBusyId("");
     }
   };
 
@@ -417,11 +472,38 @@ export default function AdminManagementSection({ section }: { section: Section }
             {selectedInvestor ? <div className={`${panelClass} space-y-5`}>
               <div><h2 className="text-lg font-bold text-white">{selectedInvestor.firstName} {selectedInvestor.lastName}</h2><p className="text-xs text-slate-400">{selectedInvestor.email}</p><p className="mt-3 text-sm">Available cash: <strong className="text-emerald-300">{money(selectedInvestor.balance)}</strong></p></div>
               <form onSubmit={submitBalanceAdjustment} className="space-y-3 border-t border-slate-800 pt-4">
-                <h3 className="text-sm font-semibold text-white">Adjust balance</h3>
+                <h3 className="text-sm font-semibold text-white">System balance adjustment</h3>
                 <select className={inputClass} value={balanceForm.direction} onChange={(event) => setBalanceForm({ ...balanceForm, direction: event.target.value })}><option value="credit">Credit cash</option><option value="debit">Debit cash</option></select>
                 <input className={inputClass} type="number" min="0.01" step="0.01" required placeholder="Amount (USD)" value={balanceForm.amount} onChange={(event) => setBalanceForm({ ...balanceForm, amount: event.target.value })} />
                 <textarea className={inputClass} required minLength={3} placeholder="Reason (recorded in transaction history)" value={balanceForm.reason} onChange={(event) => setBalanceForm({ ...balanceForm, reason: event.target.value })} />
-                <button className={buttonClass} disabled={busyId === selectedInvestor._id}>{busyId === selectedInvestor._id ? "Saving..." : "Save adjustment"}</button>
+                <button className={buttonClass} disabled={busyId === selectedInvestor._id}>{busyId === selectedInvestor._id ? "Saving..." : "Apply system adjustment"}</button>
+              </form>
+              <form onSubmit={saveInvestor} className="space-y-3 border-t border-slate-800 pt-4">
+                <h3 className="text-sm font-semibold text-white">Investor account details</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <input className={inputClass} required placeholder="First name" value={investorForm.firstName} onChange={(event) => setInvestorForm({ ...investorForm, firstName: event.target.value })} />
+                  <input className={inputClass} required placeholder="Last name" value={investorForm.lastName} onChange={(event) => setInvestorForm({ ...investorForm, lastName: event.target.value })} />
+                </div>
+                <input className={inputClass} type="email" required placeholder="Email address" value={investorForm.email} onChange={(event) => setInvestorForm({ ...investorForm, email: event.target.value })} />
+                <input className={inputClass} type="date" value={investorForm.dob} onChange={(event) => setInvestorForm({ ...investorForm, dob: event.target.value })} />
+                <div className="grid grid-cols-2 gap-3">
+                  <input className={inputClass} placeholder="Phone" value={investorForm.phone} onChange={(event) => setInvestorForm({ ...investorForm, phone: event.target.value })} />
+                  <input className={inputClass} placeholder="Country" value={investorForm.country} onChange={(event) => setInvestorForm({ ...investorForm, country: event.target.value })} />
+                </div>
+                <input className={inputClass} placeholder="Street address" value={investorForm.streetAddress} onChange={(event) => setInvestorForm({ ...investorForm, streetAddress: event.target.value })} />
+                <div className="grid grid-cols-2 gap-3">
+                  <input className={inputClass} placeholder="City" value={investorForm.city} onChange={(event) => setInvestorForm({ ...investorForm, city: event.target.value })} />
+                  <input className={inputClass} placeholder="State / region" value={investorForm.state} onChange={(event) => setInvestorForm({ ...investorForm, state: event.target.value })} />
+                </div>
+                <input className={inputClass} placeholder="Postal code" value={investorForm.postalCode} onChange={(event) => setInvestorForm({ ...investorForm, postalCode: event.target.value })} />
+                <input className={inputClass} placeholder="Investor type" value={investorForm.investorType} onChange={(event) => setInvestorForm({ ...investorForm, investorType: event.target.value })} />
+                <input className={inputClass} placeholder="Target capital" value={investorForm.targetCapital} onChange={(event) => setInvestorForm({ ...investorForm, targetCapital: event.target.value })} />
+                <select className={inputClass} value={investorForm.kycStatus} onChange={(event) => setInvestorForm({ ...investorForm, kycStatus: event.target.value })}><option value="unverified">Unverified</option><option value="pending">Pending</option><option value="verified">Verified</option><option value="rejected">Rejected</option></select>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-[10px] text-slate-400">Invested<input className={`${inputClass} mt-1`} type="number" min="0" step="0.01" value={investorForm.totalInvested} onChange={(event) => setInvestorForm({ ...investorForm, totalInvested: event.target.value })} /></label>
+                  <label className="text-[10px] text-slate-400">Returns<input className={`${inputClass} mt-1`} type="number" min="0" step="0.01" value={investorForm.totalReturns} onChange={(event) => setInvestorForm({ ...investorForm, totalReturns: event.target.value })} /></label>
+                </div>
+                <button className={buttonClass} disabled={busyId === selectedInvestor._id}>{busyId === selectedInvestor._id ? "Saving..." : "Save investor"}</button>
               </form>
               <div className="border-t border-slate-800 pt-4">
                 <h3 className="mb-2 text-sm font-semibold text-white">Recent investments</h3>
@@ -436,11 +518,11 @@ export default function AdminManagementSection({ section }: { section: Section }
         {(section === "deposits" || section === "withdrawals" || section === "transactions") && (
           <div className={`${panelClass} overflow-x-auto`}>
             <div className="mb-4 flex items-center justify-between"><h2 className="text-sm font-bold text-white">{transactions.length} records</h2><button onClick={exportTransactions} className="text-xs font-semibold text-blue-300 hover:text-white">Export CSV</button></div>
-            <table className="w-full min-w-[850px] text-left text-xs">
-              <thead className="text-slate-400"><tr><th className="p-2">Date</th><th className="p-2">Investor</th><th className="p-2">Activity</th><th className="p-2">Amount</th><th className="p-2">Status</th><th className="p-2">Reference</th><th className="p-2">Action</th></tr></thead>
+            <table className="w-full min-w-[1050px] text-left text-xs">
+              <thead className="text-slate-400"><tr><th className="p-2">Date</th><th className="p-2">Investor</th><th className="p-2">Activity</th><th className="p-2">Amount</th><th className="p-2">Submitted details</th><th className="p-2">Status</th><th className="p-2">Reference</th><th className="p-2">Action</th></tr></thead>
               <tbody className="divide-y divide-slate-800/70">
                 {filteredTransactions.map((item) => <tr key={item.id}>
-                  <td className="p-2 text-slate-400">{new Date(item.date).toLocaleDateString()}</td><td className="p-2"><Link href="/admin-dashboard/users" className="font-semibold text-blue-300 hover:underline">{item.user?.name || "Unknown"}<span className="block font-normal text-slate-500">{item.user?.email || ""}</span></Link></td><td className="p-2 text-slate-300">{item.description}</td><td className="p-2 text-white">{money(item.amount)}</td><td className="p-2"><span className={item.status === "Completed" ? "text-emerald-300" : item.status === "Failed" ? "text-rose-300" : "text-amber-300"}>{item.status}</span></td><td className="p-2 text-slate-400">{item.reference}</td>
+                  <td className="p-2 text-slate-400">{new Date(item.date).toLocaleDateString()}</td><td className="p-2"><Link href="/admin-dashboard/users" className="font-semibold text-blue-300 hover:underline">{item.user?.name || "Unknown"}<span className="block font-normal text-slate-500">{item.user?.email || ""}</span></Link></td><td className="p-2 text-slate-300">{item.description}</td><td className="p-2 text-white">{money(item.amount)}{item.fee ? <span className="block text-slate-500">Fee {money(item.fee)}</span> : null}</td><td className="max-w-sm p-2 text-slate-300"><span>{item.paymentMethod || "Not specified"}{item.asset ? ` · ${item.asset}` : ""}</span><span className="mt-1 block break-all text-slate-500">{item.externalReference ? `Transaction hash: ${item.externalReference}` : item.destination ? `Destination: ${item.destination}` : "No additional details"}</span></td><td className="p-2"><span className={item.status === "Completed" ? "text-emerald-300" : item.status === "Failed" ? "text-rose-300" : "text-amber-300"}>{item.status}</span></td><td className="p-2 text-slate-400">{item.reference}</td>
                   <td className="p-2">{item.status === "Pending" && (item.eventType === "deposit" || item.eventType === "withdrawal") ? <span className="flex gap-2"><button disabled={busyId === item.id} onClick={() => void reviewRequest(item, "Completed")} className="font-bold text-emerald-300 disabled:opacity-50">Approve</button><button disabled={busyId === item.id} onClick={() => void reviewRequest(item, "Failed")} className="font-bold text-rose-300 disabled:opacity-50">Reject</button></span> : <span className="text-slate-500">—</span>}</td>
                 </tr>)}
               </tbody>

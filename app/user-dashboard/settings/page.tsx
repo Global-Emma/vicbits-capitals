@@ -6,6 +6,7 @@ import {
   User,
   Shield,
   Bell,
+  Camera,
   CreditCard,
   Key,
   Check,
@@ -21,6 +22,8 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabType>('profile');
   const [isSaved, setIsSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [avatarMessage, setAvatarMessage] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [passwordChange, setPasswordChange] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [passwordMessage, setPasswordMessage] = useState('');
 
@@ -55,6 +58,34 @@ export default function SettingsPage() {
       setPasswordMessage('Password updated.');
     } catch {
       setPasswordMessage('Password could not be updated. Check your current password and try again.');
+    }
+  };
+
+  const uploadAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = '';
+    if (!file.type.startsWith('image/')) {
+      setAvatarMessage('Choose an image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarMessage('Profile images must be 5 MB or smaller.');
+      return;
+    }
+
+    setAvatarUploading(true);
+    setAvatarMessage('');
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const { data } = await api.post('/api/portal/settings/avatar', formData);
+      updateUserState(data.data);
+      setAvatarMessage('Profile image updated.');
+    } catch {
+      setAvatarMessage('Profile image could not be uploaded. Please try again.');
+    } finally {
+      setAvatarUploading(false);
     }
   };
 
@@ -132,10 +163,22 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="flex items-center gap-5 pt-2">
-                      <div className="w-20 h-20 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-300 text-xl font-bold">
-                        {`${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`.toUpperCase() || 'VB'}
+                      <div
+                        className="w-20 h-20 rounded-full bg-slate-800 bg-cover bg-center border-2 border-slate-700 flex items-center justify-center text-slate-300 text-xl font-bold"
+                        style={user?.avatar ? { backgroundImage: `url('${user.avatar}')` } : undefined}
+                        aria-label="Profile image"
+                      >
+                        {!user?.avatar && (`${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`.toUpperCase() || 'VB')}
                       </div>
-                      <div className="text-sm font-medium text-slate-200">{user?.firstName} {user?.lastName}<p className="text-xs text-slate-500">{user?.email}</p></div>
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-slate-200">{user?.firstName} {user?.lastName}<p className="text-xs text-slate-500">{user?.email}</p></div>
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-blue-500 hover:text-white">
+                          <Camera size={14} />
+                          {avatarUploading ? 'Uploading...' : 'Upload profile image'}
+                          <input type="file" accept="image/*" onChange={uploadAvatar} disabled={avatarUploading} className="sr-only" />
+                        </label>
+                        {avatarMessage && <p role="status" className="text-xs text-slate-400">{avatarMessage}</p>}
+                      </div>
                     </div>
 
                     <hr className="border-slate-800/80" />
@@ -296,3 +339,36 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

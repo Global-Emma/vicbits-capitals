@@ -38,7 +38,6 @@ interface Transaction {
   time: string;
   paymentMethod: string;
   fee: number;
-  senderRecipient: string;
 }
 
 export default function TransactionsPage() {
@@ -64,8 +63,7 @@ export default function TransactionsPage() {
     return transactions.filter((txn) => {
       const matchesSearch =
         txn.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        txn.reference.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        txn.senderRecipient.toLowerCase().includes(searchQuery.toLowerCase());
+        txn.reference.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesType = selectedType === 'All' || txn.type === selectedType;
       const matchesStatus = selectedStatus === 'All' || txn.status === selectedStatus;
@@ -169,7 +167,7 @@ export default function TransactionsPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
                 type="text"
-                placeholder="Search description, reference, or counterparty..."
+                placeholder="Search description or reference..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -362,11 +360,6 @@ export default function TransactionsPage() {
                   <div className="flex justify-between py-1">
                     <span className="text-slate-400">Description</span>
                     <span className="text-slate-200 font-medium">{selectedTxn.description}</span>
-                  </div>
-
-                  <div className="flex justify-between py-1">
-                    <span className="text-slate-400">Counterparty</span>
-                    <span className="text-slate-200 font-medium">{selectedTxn.senderRecipient}</span>
                   </div>
 
                   <div className="flex justify-between py-1">
