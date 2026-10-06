@@ -504,7 +504,7 @@ export default function SignUpModal({ isOpen, onClose, onSuccess, onSwitchToSign
                   </button>
                 </div>
               </motion.form>
-            )}
+           
 
                 {/* STEP 2: CODE VERIFICATION (OTP) */}
                 {step === 2 && (
