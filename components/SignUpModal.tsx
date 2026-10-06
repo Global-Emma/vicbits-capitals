@@ -58,6 +58,7 @@ type SignUpSuccessPayload = {
 interface SignUpModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSwitchToSignIn: () => void;
   onSuccess?: (payload: SignUpSuccessPayload) => void | Promise<void>;
 }
 
@@ -84,7 +85,7 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalProps) {
+export default function SignUpModal({ isOpen, onClose, onSuccess, onSwitchToSignIn }: SignUpModalProps) {
   const { updateUserState } = useApp();
   // Wizard & animation state
   const [step, setStep] = useState(1);
@@ -490,6 +491,18 @@ export default function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalP
                     </div>
                   </motion.form>
                 )}
+
+                 {/* Switch to Sign Up */}
+                <div className="text-center pt-4 border-t border-slate-800/80 text-slate-400">
+                  <span>{"Have an investor account?"} </span>
+                  <button
+                    type="button"
+                    onClick={() => onSwitchToSignIn()}
+                    className="text-[#F3B233] font-bold hover:underline cursor-pointer"
+                  >
+                    Login
+                  </button>
+                </div>
 
                 {/* STEP 2: CODE VERIFICATION (OTP) */}
                 {step === 2 && (
