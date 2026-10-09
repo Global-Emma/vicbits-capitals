@@ -62,12 +62,14 @@ interface InvestmentPlan {
 export default function VicbitsDashboard() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [plans, setPlans] = useState<InvestmentPlan[]>([]);
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
   const { user } = useApp();
   const router = useRouter();
 
   useEffect(() => {
     Promise.all([api.get("/api/portal/dashboard"), api.get("/api/portal/plans")])
       .then(([dashboardResponse, plansResponse]) => {
+        setCurrentTime(Date.now());
         setDashboard(dashboardResponse.data.data);
         setPlans(plansResponse.data.data.slice(0, 3));
       })
@@ -236,7 +238,7 @@ export default function VicbitsDashboard() {
                         <p className="text-sm font-extrabold text-white">From {formatCurrency(plan.minInvestment)}</p>
                         <p className="text-[11px] text-emerald-400">{plan.yieldPercent}% {plan.yieldType} yield</p>
                         <p className="text-[11px] text-slate-400">Expected total payout at minimum (includes capital): {formatCurrency(plan.expectedReturns)}</p>
-                        <p className="text-[10px] text-slate-500">{plan.payoutDate && new Date(plan.payoutDate).getTime() > Date.now() ? `Payout date ${new Date(plan.payoutDate).toLocaleDateString()}` : `Payout every ${plan.payoutIntervalDays} days after investment`}</p>
+                        <p className="text-[10px] text-slate-500">{plan.payoutDate && currentTime !== null && new Date(plan.payoutDate).getTime() > currentTime ? `Payout date ${new Date(plan.payoutDate).toLocaleDateString()}` : `Payout every ${plan.payoutIntervalDays} days after investment`}</p>
                       </div>
                       <Link href="/user-dashboard/investments" className="mt-4 w-full py-2 rounded-lg text-center text-xs font-bold text-slate-200 bg-slate-800 hover:bg-slate-700 transition-colors">View Plan</Link>
                     </div>

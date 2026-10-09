@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { TrendingUp, ArrowUpRight, X, CheckCircle2, LucideIcon } from "lucide-react";
 
@@ -24,6 +24,10 @@ interface ActivityItem {
   amount: string;
   timeAgo: string;
 }
+
+const subscribeToNothing = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 // --- Dynamic Name Pool Generator (Over 300+ Combinations) ---
 const FIRST_NAMES = [
@@ -103,12 +107,12 @@ export const LiveActivityPopup: React.FC = () => {
   const [currentActivity, setCurrentActivity] = useState<ActivityItem | null>(null);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isDismissed, setIsDismissed] = useState<boolean>(false);
-  const [isMounted, setIsMounted] = useState<boolean>(false);
-
-  // Prevent SSR Hydration Mismatch
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  // Keep SSR and hydration consistent, then enable client-only UI.
+  const isMounted = useSyncExternalStore(
+    subscribeToNothing,
+    getClientSnapshot,
+    getServerSnapshot,
+  );
 
   const triggerNewNotification = useCallback(() => {
     if (isDismissed) return;
