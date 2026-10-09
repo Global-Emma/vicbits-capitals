@@ -38,10 +38,13 @@ export interface ActiveInvestment {
   currentValue: number;
   totalProfit: number;
   profitPercentage: number;
-  apy: number;
+  expectedReturns: number;
+  yieldType: "weekly" | "monthly";
+  yieldPercent: number;
   startDate: string;
   nextPayoutDate: string;
-  payoutAmount: string;
+  payoutAmount: number;
+  paidOutAt?: string | null;
   status: "Active" | "Matured" | "Locked";
 }
 
@@ -54,7 +57,11 @@ export interface InvestmentAsset {
   price: number;
   priceDisplay: string;
   change24h: number;
-  expectedApy: number;
+  yieldType: "weekly" | "monthly";
+  yieldPercent: number;
+  expectedReturns: number;
+  payoutIntervalDays: number;
+  payoutDate?: string | null;
   minInvestment: number;
   riskLevel: "Low" | "Medium" | "High";
   badge?: string;
@@ -65,6 +72,23 @@ export interface InvestmentAsset {
 const toFiniteNumber = (value: unknown): number => {
   const number = typeof value === "number" ? value : Number(value);
   return Number.isFinite(number) ? number : 0;
+};
+
+const money = (value: number): string => `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const estimatedPayout = (asset: InvestmentAsset, amount: number): number => {
+  const payout = asset.minInvestment > 0
+    ? amount * asset.expectedReturns / asset.minInvestment
+    : amount * (1 + asset.yieldPercent / 100);
+  return Number(payout.toFixed(2));
+};
+
+const payoutSchedule = (asset: InvestmentAsset): string => {
+  const configuredDate = asset.payoutDate ? new Date(asset.payoutDate) : null;
+  if (configuredDate && configuredDate.getTime() > Date.now()) {
+    return `Payout date ${configuredDate.toLocaleDateString()}`;
+  }
+  return `Payout within ${asset.payoutIntervalDays} days of investment`;
 };
 
 // Category Configuration
@@ -87,6 +111,7 @@ export default function InvestmentsPage() {
   const [activeInvestments, setActiveInvestments] = useState<ActiveInvestment[]>([]);
   const [assets, setAssets] = useState<InvestmentAsset[]>([]);
   const [availableBalance, setAvailableBalance] = useState(0);
+  const [totalReturns, setTotalReturns] = useState(0);
   const [loadError, setLoadError] = useState("");
   const [submissionError, setSubmissionError] = useState("");
   const { refetchData } = useApp();
@@ -113,20 +138,28 @@ export default function InvestmentsPage() {
           id: plan.slug,
           price: toFiniteNumber(plan.price),
           priceDisplay: `$${toFiniteNumber(plan.price).toLocaleString()}`,
-          expectedApy: toFiniteNumber(plan.expectedApy),
+          change24h: toFiniteNumber(plan.change24h),
+          yieldType: plan.yieldType || "monthly",
+          yieldPercent: toFiniteNumber(plan.yieldPercent),
+          expectedReturns: toFiniteNumber(plan.expectedReturns),
+          payoutIntervalDays: toFiniteNumber(plan.payoutIntervalDays) || 30,
           minInvestment: toFiniteNumber(plan.minInvestment),
           tags: Array.isArray(plan.tags) ? plan.tags : [],
         })));
-        setActiveInvestments(investments.map((investment: ActiveInvestment & { startDate: string; expectedApy?: number }) => ({
+        setActiveInvestments(investments.map((investment: ActiveInvestment & { startDate: string }) => ({
           ...investment,
           investedAmount: toFiniteNumber(investment.investedAmount),
           currentValue: toFiniteNumber(investment.currentValue),
           totalProfit: toFiniteNumber(investment.totalProfit),
           profitPercentage: toFiniteNumber(investment.profitPercentage),
-          apy: toFiniteNumber(investment.expectedApy ?? investment.apy),
+          expectedReturns: toFiniteNumber(investment.expectedReturns),
+          yieldType: investment.yieldType || "monthly",
+          yieldPercent: toFiniteNumber(investment.yieldPercent),
+          payoutAmount: toFiniteNumber(investment.payoutAmount),
           startDate: investment.startDate ? new Date(investment.startDate).toISOString().slice(0, 10) : "",
         })));
         setAvailableBalance(toFiniteNumber(dashboardResponse.data.data?.balance));
+        setTotalReturns(toFiniteNumber(dashboardResponse.data.data?.totalReturns));
         setLoadError("");
       } catch (error) {
         console.error("Could not load investment data:", error);
@@ -139,8 +172,9 @@ export default function InvestmentsPage() {
 
   // Portfolio Totals Calculation
   const portfolioSummary = useMemo(() => {
-    const totalInvested = activeInvestments.reduce((acc, curr) => acc + toFiniteNumber(curr.investedAmount), 0);
-    const currentValue = activeInvestments.reduce((acc, curr) => acc + toFiniteNumber(curr.currentValue), 0);
+    const activePositions = activeInvestments.filter((investment) => investment.status === "Active");
+    const totalInvested = activePositions.reduce((acc, curr) => acc + toFiniteNumber(curr.investedAmount), 0);
+    const currentValue = activePositions.reduce((acc, curr) => acc + toFiniteNumber(curr.currentValue), 0);
     const totalProfit = currentValue - totalInvested;
     const profitPercentage = totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0;
 
@@ -149,7 +183,7 @@ export default function InvestmentsPage() {
       currentValue,
       totalProfit,
       profitPercentage,
-      activeCount: activeInvestments.length,
+      activeCount: activePositions.length,
     };
   }, [activeInvestments]);
 
@@ -165,7 +199,7 @@ export default function InvestmentsPage() {
 
       return matchesCategory && matchesSearch;
     }).sort((a, b) => {
-      if (sortBy === "apy") return b.expectedApy - a.expectedApy;
+      if (sortBy === "apy") return b.yieldPercent - a.yieldPercent;
       if (sortBy === "price") return b.price - a.price;
       return 0;
     });
@@ -193,16 +227,20 @@ export default function InvestmentsPage() {
         api.get("/api/portal/investments"),
         api.get("/api/portal/dashboard"),
       ]);
-      setActiveInvestments(investmentResponse.data.data.map((investment: ActiveInvestment & { startDate: string; expectedApy?: number }) => ({
+      setActiveInvestments(investmentResponse.data.data.map((investment: ActiveInvestment & { startDate: string }) => ({
         ...investment,
         investedAmount: toFiniteNumber(investment.investedAmount),
         currentValue: toFiniteNumber(investment.currentValue),
         totalProfit: toFiniteNumber(investment.totalProfit),
         profitPercentage: toFiniteNumber(investment.profitPercentage),
-        apy: toFiniteNumber(investment.expectedApy ?? investment.apy),
+        expectedReturns: toFiniteNumber(investment.expectedReturns),
+        yieldType: investment.yieldType || "monthly",
+        yieldPercent: toFiniteNumber(investment.yieldPercent),
+        payoutAmount: toFiniteNumber(investment.payoutAmount),
         startDate: investment.startDate ? new Date(investment.startDate).toISOString().slice(0, 10) : "",
       })));
       setAvailableBalance(toFiniteNumber(dashboardResponse.data.data?.balance));
+      setTotalReturns(toFiniteNumber(dashboardResponse.data.data?.totalReturns));
       await refetchData();
       setIsSuccess(true);
       window.setTimeout(() => {
@@ -261,7 +299,7 @@ export default function InvestmentsPage() {
               }`}
             >
               <Wallet size={15} />
-              <span>My Active Holdings</span>
+              <span>My Investments</span>
               <span className="ml-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#F3B233] text-black">
                 {portfolioSummary.activeCount}
               </span>
@@ -290,7 +328,7 @@ export default function InvestmentsPage() {
 
           <div className="bg-[#061224] border border-slate-800/80 rounded-2xl p-5 relative overflow-hidden">
             <div className="flex items-center justify-between text-slate-400 text-xs mb-2">
-              <span>Current Portfolio Value</span>
+              <span>Projected value of active positions</span>
               <TrendingUp size={16} className="text-emerald-400" />
             </div>
             <p className="text-2xl font-bold text-white">
@@ -307,7 +345,7 @@ export default function InvestmentsPage() {
               <ArrowUpRight size={16} className="text-[#F3B233]" />
             </div>
             <p className="text-2xl font-bold text-[#F3B233]">
-              +${Number(portfolioSummary.totalProfit).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              ${totalReturns.toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </p>
             <span className="text-[11px] text-slate-500 mt-1 block">Realized & Un-realized</span>
           </div>
@@ -327,9 +365,9 @@ export default function InvestmentsPage() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-white">Your Active Investments</h2>
+                <h2 className="text-lg font-bold text-white">Your Investment Positions</h2>
                 <p className="text-xs text-slate-400">
-                  Track performance, compounding returns, and payout dates for your investments.
+                  Track invested capital, projected payout, payout date, and settlement status.
                 </p>
               </div>
 
@@ -358,38 +396,37 @@ export default function InvestmentsPage() {
                         <div>
                           <h3 className="text-base font-bold text-white">{holding.name}</h3>
                           <span className="text-xs text-slate-400 uppercase font-medium">
-                            {holding.symbol} • Started {holding.startDate}
+                            {holding.symbol} · {holding.category} · Started {holding.startDate}
                           </span>
                         </div>
                       </div>
 
-                      <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className={`px-3 py-1 rounded-full text-xs font-extrabold border flex items-center gap-1 ${holding.status === "Active" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : holding.status === "Matured" ? "bg-blue-500/10 text-blue-300 border-blue-500/20" : "bg-amber-500/10 text-amber-300 border-amber-500/20"}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${holding.status === "Active" ? "bg-emerald-400 animate-pulse" : holding.status === "Matured" ? "bg-blue-300" : "bg-amber-300"}`} />
                         {holding.status}
                       </span>
                     </div>
 
                     {/* FINANCIAL HIGHLIGHTS */}
-                    <div className="grid grid-cols-3 gap-3 bg-[#09172c] border border-slate-800/80 p-4 rounded-xl text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#09172c] border border-slate-800/80 p-4 rounded-xl text-xs">
                       <div>
                         <span className="text-[10px] text-slate-400 block">Initial Invested</span>
-                        <span className="text-sm font-bold text-white">
-                          ${holding.investedAmount.toLocaleString()}
-                        </span>
+                        <span className="text-sm font-bold text-white">{money(holding.investedAmount)}</span>
                       </div>
 
                       <div>
                         <span className="text-[10px] text-slate-400 block">Current Value</span>
-                        <span className="text-sm font-bold text-white">
-                          ${holding.currentValue.toLocaleString()}
-                        </span>
+                        <span className="text-sm font-bold text-white">{money(holding.currentValue)}</span>
                       </div>
 
                       <div>
-                        <span className="text-[10px] text-slate-400 block">Net Profit</span>
-                        <span className="text-sm font-bold text-emerald-400 flex items-center gap-0.5">
-                          +${holding.totalProfit} ({holding.profitPercentage}%)
-                        </span>
+                        <span className="text-[10px] text-slate-400 block">Expected payout</span>
+                        <span className="text-sm font-bold text-white">{money(holding.payoutAmount)}</span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-400 block">{holding.status === "Matured" ? "Realized profit" : "Projected profit"}</span>
+                        <span className="text-sm font-bold text-emerald-400">{money(holding.totalProfit)} ({holding.profitPercentage.toFixed(2)}%)</span>
                       </div>
                     </div>
 
@@ -397,8 +434,9 @@ export default function InvestmentsPage() {
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-1 text-xs">
                       <div className="flex items-center gap-2 text-slate-400">
                         <Clock size={15} className="text-[#F3B233]" />
-                        <span>Next Payout: <strong className="text-white">{holding.nextPayoutDate}</strong> ({holding.payoutAmount})</span>
+                        <span>{holding.status === "Matured" ? "Paid out" : "Payout date"}: <strong className="text-white">{holding.status === "Matured" && holding.paidOutAt ? new Date(holding.paidOutAt).toLocaleDateString() : holding.nextPayoutDate}</strong></span>
                       </div>
+                      <span className="text-[11px] text-slate-400">{holding.yieldPercent}% {holding.yieldType} yield</span>
 
                       <div className="flex items-center gap-2 w-full sm:w-auto">
                         <button
@@ -406,7 +444,7 @@ export default function InvestmentsPage() {
                             const foundAsset = assets.find((asset) => asset.id === holding.assetId);
                             if (foundAsset) {
                               setSelectedAsset(foundAsset);
-                              setInvestAmount("500");
+                              setInvestAmount(foundAsset.minInvestment.toString());
                               setSubmissionError("");
                             }
                           }}
@@ -490,7 +528,7 @@ export default function InvestmentsPage() {
                     className="bg-[#09172c] border border-slate-800/80 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-[#1E6BF3] cursor-pointer"
                   >
                     <option value="popular">Popularity</option>
-                    <option value="apy">Highest APY / Yield</option>
+                    <option value="apy">Highest yield</option>
                     <option value="price">Asset Price</option>
                   </select>
                 </div>
@@ -516,7 +554,7 @@ export default function InvestmentsPage() {
                               {asset.name}
                             </h3>
                             <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                              {asset.symbol}
+                              {asset.symbol} · {asset.category}
                             </span>
                           </div>
                         </div>
@@ -554,22 +592,17 @@ export default function InvestmentsPage() {
                         <div className="text-right">
                           <span className="text-[10px] text-slate-400 block">Expected Yield</span>
                           <span className="font-bold text-emerald-400 flex items-center justify-end gap-0.5">
-                            {asset.expectedApy}% APY <TrendingUp size={12} />
+                            {asset.yieldPercent}% {asset.yieldType} <TrendingUp size={12} />
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                        <span>Min. Entry: <strong className="text-slate-200">${asset.minInvestment}</strong></span>
-                        <span className="flex items-center gap-1">
-                          Risk: 
-                          <strong className={
-                            asset.riskLevel === "Low" ? "text-emerald-400" :
-                            asset.riskLevel === "Medium" ? "text-amber-400" : "text-red-400"
-                          }>
-                            {asset.riskLevel}
-                          </strong>
-                        </span>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-400 pt-1">
+                        <span>Min. entry: <strong className="text-slate-200">{money(asset.minInvestment)}</strong></span>
+                        <span className="text-right">24h: <strong className={asset.change24h >= 0 ? "text-emerald-400" : "text-rose-400"}>{asset.change24h >= 0 ? "+" : ""}{asset.change24h}%</strong></span>
+                        <span>Expected total payout at minimum (includes capital): <strong className="text-white">{money(asset.expectedReturns)}</strong></span>
+                        <span className="text-right">Risk: <strong className={asset.riskLevel === "Low" ? "text-emerald-400" : asset.riskLevel === "Medium" ? "text-amber-400" : "text-red-400"}>{asset.riskLevel}</strong></span>
+                        <span className="col-span-2">{payoutSchedule(asset)}</span>
                       </div>
 
                       <button
@@ -628,7 +661,7 @@ export default function InvestmentsPage() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">{selectedAsset.name}</h3>
-                  <span className="text-xs text-slate-400">Target APY: <strong className="text-emerald-400">{selectedAsset.expectedApy}%</strong></span>
+                  <span className="text-xs text-slate-400">Expected yield: <strong className="text-emerald-400">{selectedAsset.yieldPercent}% {selectedAsset.yieldType}</strong></span>
                 </div>
               </div>
 
@@ -689,15 +722,16 @@ export default function InvestmentsPage() {
 
                     <div className="text-[10px] text-slate-400 flex justify-between">
                       <span>Minimum required: ${selectedAsset.minInvestment}</span>
-                      <span>Est. Annual Return: <strong className="text-emerald-400">+${((parseFloat(investAmount || "0") * selectedAsset.expectedApy) / 100).toFixed(2)}</strong></span>
+                      <span>Estimated payout: <strong className="text-emerald-400">{money(estimatedPayout(selectedAsset, toFiniteNumber(investAmount)))}</strong></span>
                     </div>
                   </div>
 
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between text-slate-400">
-                      <span>Expected Annual Return</span>
-                      <span className="text-emerald-400 font-semibold">{selectedAsset.expectedApy}% APY</span>
+                      <span>Projected profit</span>
+                      <span className="text-emerald-400 font-semibold">{money(estimatedPayout(selectedAsset, toFiniteNumber(investAmount)) - toFiniteNumber(investAmount))}</span>
                     </div>
+                    <div className="flex justify-between text-slate-400"><span>Payout schedule</span><span className="text-white">{payoutSchedule(selectedAsset)}</span></div>
                     <div className="flex justify-between text-slate-400">
                       <span>Risk Profile</span>
                       <span className="text-white">{selectedAsset.riskLevel}</span>

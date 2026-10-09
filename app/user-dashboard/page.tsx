@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import {
   TrendingUp,
   Briefcase,
@@ -50,7 +51,11 @@ interface InvestmentPlan {
   name: string;
   slug: string;
   minInvestment: number;
-  expectedApy: number;
+  expectedReturns: number;
+  yieldType: "weekly" | "monthly";
+  yieldPercent: number;
+  payoutIntervalDays: number;
+  payoutDate?: string | null;
   badge?: string;
 }
 
@@ -82,9 +87,10 @@ export default function VicbitsDashboard() {
               </h1>
               <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
                 <span>Here&apos;s your financial portfolio summary</span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 bg-slate-500/10 border border-slate-500/20 px-2 py-0.5 rounded-full">
-                  <ShieldCheck size={11} /> {user?.kycStatus || "unverified"} account
-                </span>
+                
+                  {(user?.kycStatus === "verified" || user?.isEmailVerified) && (
+        <VerifiedBadge size={18} />
+      )}
               </p>
             </div>
 
@@ -104,7 +110,7 @@ export default function VicbitsDashboard() {
                 className="px-4 py-2.5 rounded-xl font-bold text-xs text-slate-200 bg-[#09172c] border border-slate-800 hover:border-slate-700 hover:text-white transition-all flex items-center gap-2"
               >
                 <ArrowDownLeft size={15} />
-                <span>Withdraw Profit</span>
+                <span>Withdraw Funds</span>
               </button>
             </div>
           </div>
@@ -212,13 +218,13 @@ export default function VicbitsDashboard() {
                     <h3 className="text-sm font-bold text-white">Featured Investment Plans</h3>
                     <p className="text-[11px] text-slate-400">Select a plan to compound your wealth</p>
                   </div>
-                  <button
-                    type="button"
+                  <Link
+                    href="/user-dashboard/investments"
                     className="text-[11px] font-bold text-[#1E6BF3] hover:underline flex items-center gap-0.5"
                   >
                     <span>View All Plans</span>
                     <ChevronRight size={12} />
-                  </button>
+                  </Link>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -228,7 +234,9 @@ export default function VicbitsDashboard() {
                         <div className="w-8 h-8 rounded-lg bg-blue-500/15 text-blue-400 flex items-center justify-center"><TrendingUp size={16} /></div>
                         <h4 className="text-xs font-bold text-white">{plan.name}</h4>
                         <p className="text-sm font-extrabold text-white">From {formatCurrency(plan.minInvestment)}</p>
-                        <p className="text-[11px] text-emerald-400">{plan.expectedApy}% expected APY</p>
+                        <p className="text-[11px] text-emerald-400">{plan.yieldPercent}% {plan.yieldType} yield</p>
+                        <p className="text-[11px] text-slate-400">Expected total payout at minimum (includes capital): {formatCurrency(plan.expectedReturns)}</p>
+                        <p className="text-[10px] text-slate-500">{plan.payoutDate && new Date(plan.payoutDate).getTime() > Date.now() ? `Payout date ${new Date(plan.payoutDate).toLocaleDateString()}` : `Payout every ${plan.payoutIntervalDays} days after investment`}</p>
                       </div>
                       <Link href="/user-dashboard/investments" className="mt-4 w-full py-2 rounded-lg text-center text-xs font-bold text-slate-200 bg-slate-800 hover:bg-slate-700 transition-colors">View Plan</Link>
                     </div>

@@ -42,6 +42,13 @@ export interface PortfolioHolding {
   avgBuyPrice: number;
   currentPrice: number;
   totalValue: number;
+  investedAmount?: number;
+  currentValue?: number;
+  payoutAmount?: number;
+  payoutDate?: string | null;
+  yieldType?: "weekly" | "monthly";
+  yieldPercent?: number;
+  status?: string;
   unrealizedProfit: number;
   profitPercentage: number;
   change24h: number;
@@ -51,12 +58,12 @@ export interface PortfolioHolding {
 // Activity / Transaction Log Interface
 export interface ActivityItem {
   id: string;
-  type: "Buy" | "Deposit" | "Yield Payout" | "Rebalance";
+  type: "Buy" | "Deposit" | "Yield Payout" | "Withdrawal" | "Rebalance";
   assetName: string;
   amount: string;
   valueUsd: number;
   date: string;
-  status: "Completed" | "Pending";
+  status: "Completed" | "Pending" | "Failed";
 }
 
 // CATEGORIES CONFIG
@@ -74,6 +81,8 @@ export default function PortfolioPage() {
   const router = useRouter();
   const [holdings, setHoldings] = useState<PortfolioHolding[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [allTimeReturns, setAllTimeReturns] = useState<number | null>(null);
+  const [lifetimeInvested, setLifetimeInvested] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortBy, setSortBy] = useState<"value" | "profit" | "name">("value");
@@ -81,14 +90,16 @@ export default function PortfolioPage() {
   useEffect(() => {
     api.get("/api/portal/portfolio").then(({ data }) => {
       setHoldings(data.data.holdings);
+      setAllTimeReturns(Number(data.data.totalReturns) || 0);
+      setLifetimeInvested(Number(data.data.totalInvested) || 0);
       setActivities(data.data.activities.map((item: { id: string; eventType: string; description: string; amount: number; date: string; status: string; type: string }) => ({
         id: item.id,
-        type: item.eventType === "investment" ? "Buy" : item.eventType === "deposit" ? "Deposit" : "Rebalance",
+        type: item.eventType === "investment" && item.type === "Income" ? "Yield Payout" : item.eventType === "investment" ? "Buy" : item.eventType === "deposit" ? "Deposit" : item.eventType === "withdrawal" ? "Withdrawal" : "Rebalance",
         assetName: item.description,
         amount: `${item.type === "Income" ? "+" : "-"}$${item.amount.toFixed(2)} USD`,
         valueUsd: item.amount,
         date: new Date(item.date).toLocaleDateString(),
-        status: item.status === "Completed" ? "Completed" : "Pending",
+        status: item.status === "Completed" ? "Completed" : item.status === "Failed" ? "Failed" : "Pending",
       })));
     }).catch((error) => console.error("Could not load portfolio:", error));
   }, []);
@@ -96,30 +107,25 @@ export default function PortfolioPage() {
   // Calculated Portfolio Summary Numbers
   const summary = useMemo(() => {
     const totalNetWorth = holdings.reduce((sum, h) => sum + h.totalValue, 0);
-    const totalProfit = holdings.reduce((sum, h) => sum + h.unrealizedProfit, 0);
-    const initialCostBasis = totalNetWorth - totalProfit;
-    const allTimeProfitPercent = initialCostBasis > 0 ? (totalProfit / initialCostBasis) * 100 : 0;
+    const unrealizedProfit = holdings.reduce((sum, h) => sum + h.unrealizedProfit, 0);
+    const totalReturns = allTimeReturns ?? unrealizedProfit;
+    const allTimeProfitPercent = lifetimeInvested > 0 ? (totalReturns / lifetimeInvested) * 100 : 0;
 
     const liquidCash = holdings.find((h) => h.category === "cash")?.totalValue || 0;
-    const investedCapital = totalNetWorth - liquidCash;
-
-    // Daily Gain weighted average estimate
-    const dailyGainUsd = holdings.reduce(
-      (sum, h) => sum + (h.totalValue * h.change24h) / 100,
-      0
-    );
-    const dailyGainPercent = totalNetWorth > 0 ? (dailyGainUsd / totalNetWorth) * 100 : 0;
+    const investmentHoldings = holdings.filter((holding) => holding.category !== "cash");
+    const investedCapital = investmentHoldings
+      .reduce((sum, holding) => sum + holding.unitsHeld, 0);
 
     return {
       totalNetWorth,
-      totalProfit,
+      totalReturns,
+      unrealizedProfit,
       allTimeProfitPercent,
       liquidCash,
       investedCapital,
-      dailyGainUsd,
-      dailyGainPercent,
+      openPositions: investmentHoldings.length,
     };
-  }, [holdings]);
+  }, [allTimeReturns, holdings, lifetimeInvested]);
 
   // Asset Allocation Distribution Calculation
   const allocationBreakdown = useMemo(() => {
@@ -129,7 +135,7 @@ export default function PortfolioPage() {
     });
 
     return Object.entries(categories).map(([catKey, value]) => {
-      const percentage = (value / summary.totalNetWorth) * 100;
+      const percentage = summary.totalNetWorth > 0 ? (value / summary.totalNetWorth) * 100 : 0;
       return {
         key: catKey,
         name: CATEGORY_MAP[catKey as CategoryType]?.name || catKey,
@@ -201,17 +207,7 @@ export default function PortfolioPage() {
             <div className="text-3xl font-extrabold text-white tracking-tight">
               ${summary.totalNetWorth.toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </div>
-            <div className="flex items-center gap-2 text-xs pt-1">
-              <span
-                className={`flex items-center gap-0.5 font-bold ${
-                  summary.dailyGainPercent >= 0 ? "text-emerald-400" : "text-red-400"
-                }`}
-              >
-                {summary.dailyGainPercent >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                {Math.abs(summary.dailyGainPercent).toFixed(2)}%
-              </span>
-              <span className="text-slate-500">24h Gain</span>
-            </div>
+            <div className="pt-1 text-xs text-slate-500">Available cash plus active investment values</div>
           </div>
 
           {/* ALL TIME EARNINGS */}
@@ -221,7 +217,7 @@ export default function PortfolioPage() {
               <TrendingUp size={16} className="text-emerald-400" />
             </div>
             <div className="text-3xl font-extrabold text-emerald-400 tracking-tight">
-              +${summary.totalProfit.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              +${summary.totalReturns.toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-slate-400 pt-1">
               <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20 text-[10px]">
@@ -241,7 +237,7 @@ export default function PortfolioPage() {
               ${summary.investedCapital.toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </div>
             <div className="text-xs text-slate-500 pt-1">
-              Allocated in 5 Yield-Bearing Vaults
+              Across {summary.openPositions} active investment positions
             </div>
           </div>
 
@@ -283,7 +279,7 @@ export default function PortfolioPage() {
               <p className="mt-2 text-xs text-slate-400">Historical valuation points will appear after they are recorded.</p>
               <div className="mt-6 grid grid-cols-2 gap-4 text-xs">
                 <div><span className="text-slate-400">Invested</span><p className="mt-1 font-bold text-white">${summary.investedCapital.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p></div>
-                <div><span className="text-slate-400">Unrealized return</span><p className="mt-1 font-bold text-emerald-400">${summary.totalProfit.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p></div>
+                <div><span className="text-slate-400">Unrealized return</span><p className={`mt-1 font-bold ${summary.unrealizedProfit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{summary.unrealizedProfit >= 0 ? "+" : ""}${summary.unrealizedProfit.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p></div>
               </div>
             </div>
 
@@ -351,7 +347,7 @@ export default function PortfolioPage() {
             <div>
               <h3 className="text-lg font-bold text-white">Your Asset Holdings</h3>
               <p className="text-xs text-slate-400">
-                Detailed listing of all positions, entry prices, live market values, and ROI.
+                Invested capital, current values, projected payouts, and position status.
               </p>
             </div>
 
@@ -413,13 +409,13 @@ export default function PortfolioPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  <th className="py-3 px-4">Asset Name</th>
-                  <th className="py-3 px-4">Holdings / Balance</th>
-                  <th className="py-3 px-4">Avg Buy Price</th>
-                  <th className="py-3 px-4">Current Price</th>
-                  <th className="py-3 px-4">Total Value</th>
-                  <th className="py-3 px-4">24h Change</th>
-                  <th className="py-3 px-4">Unrealized P&L</th>
+                  <th className="py-3 px-4">Position</th>
+                  <th className="py-3 px-4">Invested capital</th>
+                  <th className="py-3 px-4">Current value</th>
+                  <th className="py-3 px-4">Expected payout</th>
+                  <th className="py-3 px-4">Payout date</th>
+                  <th className="py-3 px-4">Yield</th>
+                  <th className="py-3 px-4">Status / allocation</th>
                   <th className="py-3 px-4 text-right">Action</th>
                 </tr>
               </thead>
@@ -441,57 +437,22 @@ export default function PortfolioPage() {
                               {item.name}
                             </div>
                             <div className="text-[10px] text-slate-400 uppercase font-semibold">
-                              {item.symbol} • {item.allocationPercentage}% of portfolio
+                              {item.symbol} • {item.category}
                             </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* UNITS HELD */}
-                      <td className="py-4 px-4 font-semibold text-white">
-                        {item.unitsHeld.toLocaleString()} {item.symbol}
-                      </td>
-
-                      {/* AVG BUY PRICE */}
-                      <td className="py-4 px-4 text-slate-300">
-                        ${item.avgBuyPrice.toLocaleString()}
-                      </td>
-
-                      {/* CURRENT PRICE */}
-                      <td className="py-4 px-4 font-semibold text-white">
-                        ${item.currentPrice.toLocaleString()}
-                      </td>
-
-                      {/* TOTAL VALUE */}
-                      <td className="py-4 px-4 font-extrabold text-white">
-                        ${item.totalValue.toLocaleString()}
-                      </td>
-
-                      {/* 24H CHANGE */}
-                      <td className="py-4 px-4">
-                        <span
-                          className={`font-semibold flex items-center gap-0.5 ${
-                            item.change24h >= 0 ? "text-emerald-400" : "text-red-400"
-                          }`}
-                        >
-                          {item.change24h >= 0 ? "+" : ""}
-                          {item.change24h}%
-                        </span>
-                      </td>
-
-                      {/* UNREALIZED P&L */}
-                      <td className="py-4 px-4">
-                        <div className="font-bold text-emerald-400">
-                          +${item.unrealizedProfit.toLocaleString()}
-                        </div>
-                        <div className="text-[10px] text-emerald-400/80 font-semibold">
-                          (+{item.profitPercentage}%)
-                        </div>
-                      </td>
+                      <td className="py-4 px-4 font-semibold text-white">${(item.investedAmount ?? item.unitsHeld).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                      <td className="py-4 px-4 font-extrabold text-white">${(item.currentValue ?? item.totalValue).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                      <td className="py-4 px-4 font-semibold text-white">{item.payoutAmount === undefined ? "—" : `$${item.payoutAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}</td>
+                      <td className="py-4 px-4 text-slate-300">{item.payoutDate ? new Date(item.payoutDate).toLocaleDateString() : "—"}</td>
+                      <td className="py-4 px-4 text-emerald-300">{item.yieldPercent === undefined ? "—" : `${item.yieldPercent}% ${item.yieldType || ""}`}</td>
+                      <td className="py-4 px-4 text-slate-300">{item.status || "Active"}<span className="block text-slate-500">{item.allocationPercentage.toFixed(2)}% of portfolio</span><span className={`block ${item.unrealizedProfit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{item.unrealizedProfit >= 0 ? "+" : ""}${item.unrealizedProfit.toFixed(2)} projected</span></td>
 
                       {/* ACTION */}
                       <td className="py-4 px-4 text-right">
-                        <button className="px-3 py-1.5 bg-[#09172c] hover:bg-[#1E6BF3] border border-slate-800 hover:border-[#1E6BF3] text-slate-300 hover:text-white rounded-lg font-bold text-[11px] transition-all">
+                        <button onClick={() => router.push("/user-dashboard/investments")} className="px-3 py-1.5 bg-[#09172c] hover:bg-[#1E6BF3] border border-slate-800 hover:border-[#1E6BF3] text-slate-300 hover:text-white rounded-lg font-bold text-[11px] transition-all">
                           Manage
                         </button>
                       </td>
@@ -536,6 +497,7 @@ export default function PortfolioPage() {
                     {act.type === "Yield Payout" && <Coins size={15} className="text-emerald-400" />}
                     {act.type === "Buy" && <ArrowUpRight size={15} className="text-[#1E6BF3]" />}
                     {act.type === "Deposit" && <Wallet size={15} className="text-[#F3B233]" />}
+                    {act.type === "Withdrawal" && <ArrowDownRight size={15} className="text-rose-400" />}
                   </div>
                   <div>
                     <span className="font-bold text-white block">{act.assetName}</span>
@@ -546,7 +508,7 @@ export default function PortfolioPage() {
                 <div className="text-right">
                   <span className="font-bold text-emerald-400 block">{act.amount}</span>
                   <span className="text-[10px] text-slate-400">
-                    Status: <strong className="text-emerald-400">{act.status}</strong>
+                  Status: <strong className={act.status === "Completed" ? "text-emerald-400" : act.status === "Failed" ? "text-rose-400" : "text-amber-300"}>{act.status}</strong>
                   </span>
                 </div>
               </div>

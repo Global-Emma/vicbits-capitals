@@ -43,18 +43,23 @@ export default function WithdrawalsPage() {
   const { user, refetchData } = useApp();
   const [withdrawalHistory, setWithdrawalHistory] = useState<WithdrawalRecord[]>([]);
   const [dailyLimitUsed, setDailyLimitUsed] = useState(0);
+  const [dashboardBalance, setDashboardBalance] = useState<number | null>(null);
   const [requestError, setRequestError] = useState("");
-  const withdrawableBalance = Number(user?.balance || 0);
-  const dailyLimitTotal = Number(user?.withdrawalLimit || 50000);
+  const withdrawableBalance = Number(dashboardBalance ?? user?.balance ?? 0);
+  const dailyLimitTotal = Number(user?.withdrawalLimit || 10000);
   const dailyLimitRemaining = dailyLimitTotal - dailyLimitUsed;
 
   useEffect(() => {
-    api.get("/api/portal/withdrawals")
-      .then(({ data }) => {
-        setWithdrawalHistory(data.data.withdrawals);
-        setDailyLimitUsed(data.data.dailyLimitUsed);
+    Promise.all([api.get("/api/portal/withdrawals"), api.get("/api/portal/dashboard")])
+      .then(([withdrawalsResponse, dashboardResponse]) => {
+        setWithdrawalHistory(withdrawalsResponse.data.data.withdrawals);
+        setDailyLimitUsed(withdrawalsResponse.data.data.dailyLimitUsed);
+        setDashboardBalance(Number(dashboardResponse.data.data.balance) || 0);
       })
-      .catch((error) => console.error("Could not load withdrawal history:", error));
+      .catch((error) => {
+        console.error("Could not load withdrawal data:", error);
+        setRequestError("Withdrawal information could not be loaded. Refresh and try again.");
+      });
   }, []);
 
   // Form State
@@ -145,6 +150,10 @@ export default function WithdrawalsPage() {
       });
       setWithdrawalHistory((previous) => [data.data, ...previous]);
       setDailyLimitUsed((previous) => previous + Number(amountInput));
+      setDashboardBalance(Math.max(0, withdrawableBalance - Number(amountInput)));
+      void api.get("/api/portal/dashboard")
+        .then((dashboardResponse) => setDashboardBalance(Number(dashboardResponse.data.data.balance) || 0))
+        .catch((error) => console.error("Could not refresh balance after withdrawal:", error));
       await refetchData();
       setShowConfirmModal(false);
       setWithdrawalSuccess(true);

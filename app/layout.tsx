@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import AppProvider from "@/utils/AppProvider";
 import "./globals.css";
+import { LiveActivityPopup } from "@/components/LiveActivityPopup";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,6 +44,8 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col font-sans bg-slate-950 text-slate-50">
         <AppProvider>{children}</AppProvider>
+
+        <LiveActivityPopup />
       </body>
     </html>
   );

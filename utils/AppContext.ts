@@ -17,6 +17,7 @@ export interface AppUser {
 	jobTitle?: string;
 	company?: string;
 	bio?: string;
+	isEmailVerified?: boolean;
 	timezone?: string;
 	preferences?: Record<string, boolean>;
 }

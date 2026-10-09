@@ -65,10 +65,18 @@ interface AdminInvestment {
   user: { id: string; name: string; email: string } | null;
   name: string;
   symbol: string;
+  category?: string;
+  yieldType?: "weekly" | "monthly";
+  yieldPercent?: number;
   planSlug: string;
   investedAmount: number;
   currentValue: number;
   status: "Active" | "Matured" | "Locked";
+  payoutDate?: string | null;
+  expectedReturns?: number;
+  payoutAmount?: number;
+  startDate?: string;
+  paidOutAt?: string | null;
   createdAt: string;
 }
 
@@ -79,9 +87,15 @@ interface Plan {
   symbol: string;
   category: string;
   price: number;
-  expectedApy: number;
+  change24h: number;
+  yieldType: "weekly" | "monthly";
+  yieldPercent: number;
+  expectedReturns?: number;
+  payoutIntervalDays?: number;
+  payoutDate?: string | null;
   minInvestment: number;
   riskLevel: string;
+  badge?: string | null;
   description: string;
   tags: string[];
   active: boolean;
@@ -141,7 +155,7 @@ export default function AdminManagementSection({ section }: { section: Section }
   const [userActivity, setUserActivity] = useState<{ transactions: Transaction[]; investments: AdminInvestment[] } | null>(null);
   const [balanceForm, setBalanceForm] = useState({ direction: "credit", amount: "", reason: "" });
   const [investorForm, setInvestorForm] = useState({ firstName: "", lastName: "", email: "", dob: "", phone: "", country: "", streetAddress: "", city: "", state: "", postalCode: "", investorType: "", targetCapital: "", kycStatus: "unverified", totalInvested: "0", totalReturns: "0" });
-  const [planForm, setPlanForm] = useState({ name: "", slug: "", symbol: "", category: "crypto", price: "0", expectedApy: "0", minInvestment: "", riskLevel: "Medium", description: "", tags: "" });
+  const [planForm, setPlanForm] = useState({ name: "", slug: "", symbol: "", category: "crypto", price: "0", change24h: "0", yieldType: "monthly" as "weekly" | "monthly", yieldPercent: "0", payoutIntervalDays: "30", payoutDate: "", minInvestment: "", riskLevel: "Medium", badge: "", description: "", tags: "", active: true });
   const [editingPlanId, setEditingPlanId] = useState("");
   const [methodForm, setMethodForm] = useState({ asset: "", name: "", network: "", address: "", minimumUsdAmount: "0", confirmations: "1" });
   const [notice, setNotice] = useState("");
@@ -228,7 +242,9 @@ export default function AdminManagementSection({ section }: { section: Section }
         city: data.data.user.city || "",
         state: data.data.user.state || "",
         postalCode: data.data.user.postalCode || "",
-        investorType: data.data.user.investorType || "",
+        investorType: ["Individual Investor", "Institutional Investor", "Accredited Investor", "Corporate / Entity"].includes(data.data.user.investorType)
+          ? data.data.user.investorType
+          : "Individual Investor",
         targetCapital: data.data.user.targetCapital || "",
         kycStatus: data.data.user.kycStatus || "unverified",
         totalInvested: String(data.data.user.totalInvested ?? 0),
@@ -305,8 +321,23 @@ export default function AdminManagementSection({ section }: { section: Section }
     setError("");
     try {
       await api.patch(`/api/portal/admin/investments/${investment.id}/status`, { status });
-      setInvestments((current) => current.map((item) => item.id === investment.id ? { ...item, status } : item));
       setNotice(`${investment.name} marked ${status.toLowerCase()}.`);
+      await loadData();
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      setBusyId("");
+    }
+  };
+
+  const updateInvestmentPayout = async (investment: AdminInvestment, payoutDate: string) => {
+    if (!payoutDate) return;
+    setBusyId(investment.id);
+    setError("");
+    try {
+      const { data } = await api.patch(`/api/portal/admin/investments/${investment.id}/status`, { payoutDate });
+      setInvestments((current) => current.map((item) => item.id === investment.id ? { ...item, ...data.data, id: item.id, user: item.user } : item));
+      setNotice(`${investment.name} payout date updated.`);
     } catch (failure) {
       setError(errorMessage(failure));
     } finally {
@@ -322,14 +353,18 @@ export default function AdminManagementSection({ section }: { section: Section }
     const payload = {
       ...planForm,
       price: Number(planForm.price),
-      expectedApy: Number(planForm.expectedApy),
+      change24h: Number(planForm.change24h),
+      yieldPercent: Number(planForm.yieldPercent),
+      yieldType: planForm.yieldType,
+      payoutIntervalDays: Number(planForm.payoutIntervalDays),
+      payoutDate: planForm.payoutDate ? `${planForm.payoutDate}T00:00:00.000Z` : null,
       minInvestment: Number(planForm.minInvestment),
       tags: planForm.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
     };
     try {
       if (editingPlanId) await api.put(`/api/portal/plans/${editingPlanId}`, payload);
       else await api.post("/api/portal/plans", payload);
-      setPlanForm({ name: "", slug: "", symbol: "", category: "crypto", price: "0", expectedApy: "0", minInvestment: "", riskLevel: "Medium", description: "", tags: "" });
+      setPlanForm({ name: "", slug: "", symbol: "", category: "crypto", price: "0", change24h: "0", yieldType: "monthly", yieldPercent: "0", payoutIntervalDays: "30", payoutDate: "", minInvestment: "", riskLevel: "Medium", badge: "", description: "", tags: "", active: true });
       setEditingPlanId("");
       setNotice("Investment plan saved.");
       await loadData();
@@ -485,7 +520,7 @@ export default function AdminManagementSection({ section }: { section: Section }
                   <input className={inputClass} required placeholder="Last name" value={investorForm.lastName} onChange={(event) => setInvestorForm({ ...investorForm, lastName: event.target.value })} />
                 </div>
                 <input className={inputClass} type="email" required placeholder="Email address" value={investorForm.email} onChange={(event) => setInvestorForm({ ...investorForm, email: event.target.value })} />
-                <input className={inputClass} type="date" value={investorForm.dob} onChange={(event) => setInvestorForm({ ...investorForm, dob: event.target.value })} />
+                <input className={inputClass} type="date" required value={investorForm.dob} onChange={(event) => setInvestorForm({ ...investorForm, dob: event.target.value })} />
                 <div className="grid grid-cols-2 gap-3">
                   <input className={inputClass} placeholder="Phone" value={investorForm.phone} onChange={(event) => setInvestorForm({ ...investorForm, phone: event.target.value })} />
                   <input className={inputClass} placeholder="Country" value={investorForm.country} onChange={(event) => setInvestorForm({ ...investorForm, country: event.target.value })} />
@@ -496,7 +531,7 @@ export default function AdminManagementSection({ section }: { section: Section }
                   <input className={inputClass} placeholder="State / region" value={investorForm.state} onChange={(event) => setInvestorForm({ ...investorForm, state: event.target.value })} />
                 </div>
                 <input className={inputClass} placeholder="Postal code" value={investorForm.postalCode} onChange={(event) => setInvestorForm({ ...investorForm, postalCode: event.target.value })} />
-                <input className={inputClass} placeholder="Investor type" value={investorForm.investorType} onChange={(event) => setInvestorForm({ ...investorForm, investorType: event.target.value })} />
+                <select className={inputClass} required value={investorForm.investorType} onChange={(event) => setInvestorForm({ ...investorForm, investorType: event.target.value })}><option value="" disabled>Select investor type</option><option>Individual Investor</option><option>Institutional Investor</option><option>Accredited Investor</option><option>Corporate / Entity</option></select>
                 <input className={inputClass} placeholder="Target capital" value={investorForm.targetCapital} onChange={(event) => setInvestorForm({ ...investorForm, targetCapital: event.target.value })} />
                 <select className={inputClass} value={investorForm.kycStatus} onChange={(event) => setInvestorForm({ ...investorForm, kycStatus: event.target.value })}><option value="unverified">Unverified</option><option value="pending">Pending</option><option value="verified">Verified</option><option value="rejected">Rejected</option></select>
                 <div className="grid grid-cols-2 gap-3">
@@ -507,7 +542,7 @@ export default function AdminManagementSection({ section }: { section: Section }
               </form>
               <div className="border-t border-slate-800 pt-4">
                 <h3 className="mb-2 text-sm font-semibold text-white">Recent investments</h3>
-                {userActivity?.investments?.length ? userActivity.investments.map((item) => <p key={item.id} className="py-1 text-xs text-slate-300">{item.name} · {money(item.investedAmount)} · {item.status}</p>) : <p className="text-xs text-slate-500">No investments found.</p>}
+                {userActivity?.investments?.length ? userActivity.investments.map((item) => <p key={item.id} className="py-1 text-xs text-slate-300">{item.name} · invested {money(item.investedAmount)} · payout {money(item.payoutAmount ?? item.expectedReturns)} · {item.payoutDate ? new Date(item.payoutDate).toLocaleDateString() : "No payout date"} · {item.status}</p>) : <p className="text-xs text-slate-500">No investments found.</p>}
                 <h3 className="mb-2 mt-4 text-sm font-semibold text-white">Recent transactions</h3>
                 {userActivity?.transactions?.slice(0, 6).map((item) => <p key={item.id} className="py-1 text-xs text-slate-300">{item.description} · {money(item.amount)} · {item.status}</p>)}
               </div>
@@ -533,8 +568,8 @@ export default function AdminManagementSection({ section }: { section: Section }
 
         {section === "investments" && <div className={`${panelClass} overflow-x-auto`}>
           <h2 className="mb-4 text-sm font-bold text-white">{filteredInvestments.length} investor positions</h2>
-          <table className="w-full min-w-[850px] text-left text-xs"><thead className="text-slate-400"><tr><th className="p-2">Investor</th><th className="p-2">Investment</th><th className="p-2">Invested</th><th className="p-2">Current value</th><th className="p-2">Status</th><th className="p-2">Change status</th></tr></thead><tbody className="divide-y divide-slate-800/70">
-            {filteredInvestments.map((item) => <tr key={item.id}><td className="p-2 text-white">{item.user?.name || "Unknown"}<span className="block text-slate-500">{item.user?.email}</span></td><td className="p-2 text-slate-300">{item.name} ({item.symbol})</td><td className="p-2">{money(item.investedAmount)}</td><td className="p-2">{money(item.currentValue)}</td><td className="p-2">{item.status}</td><td className="p-2"><select disabled={busyId === item.id} value={item.status} onChange={(event) => void updateInvestmentStatus(item, event.target.value as AdminInvestment["status"])} className={inputClass}><option>Active</option><option>Matured</option><option>Locked</option></select></td></tr>)}
+          <table className="w-full min-w-[1100px] text-left text-xs"><thead className="text-slate-400"><tr><th className="p-2">Investor</th><th className="p-2">Investment</th><th className="p-2">Invested capital</th><th className="p-2">Current value</th><th className="p-2">Expected payout</th><th className="p-2">Payout date</th><th className="p-2">Status</th><th className="p-2">Change status</th></tr></thead><tbody className="divide-y divide-slate-800/70">
+            {filteredInvestments.map((item) => <tr key={item.id}><td className="p-2 text-white">{item.user?.name || "Unknown"}<span className="block text-slate-500">{item.user?.email}</span></td><td className="p-2 text-slate-300">{item.name} ({item.symbol})<span className="block text-slate-500">{item.category || item.planSlug} · {item.yieldPercent ?? 0}% {item.yieldType || "yield"}</span><span className="block text-slate-500">Started {item.startDate ? new Date(item.startDate).toLocaleDateString() : "—"}</span></td><td className="p-2">{money(item.investedAmount)}</td><td className="p-2">{money(item.currentValue)}</td><td className="p-2">{money(item.payoutAmount ?? item.expectedReturns)}</td><td className="p-2"><input type="date" required value={item.payoutDate ? new Date(item.payoutDate).toISOString().slice(0, 10) : ""} onChange={(event) => void updateInvestmentPayout(item, event.target.value)} className={inputClass} disabled={busyId === item.id || item.status !== "Active"} /></td><td className="p-2">{item.status}{item.paidOutAt ? <span className="block text-slate-500">Paid {new Date(item.paidOutAt).toLocaleDateString()}</span> : null}</td><td className="p-2"><select disabled={busyId === item.id} value={item.status} onChange={(event) => void updateInvestmentStatus(item, event.target.value as AdminInvestment["status"])} className={inputClass}><option>Active</option><option>Matured</option><option>Locked</option></select></td></tr>)}
           </tbody></table>
         </div>}
 
@@ -544,12 +579,16 @@ export default function AdminManagementSection({ section }: { section: Section }
             <input className={inputClass} required placeholder="Plan name" value={planForm.name} onChange={(event) => setPlanForm({ ...planForm, name: event.target.value })} />
             <div className="grid grid-cols-2 gap-3"><input className={inputClass} required placeholder="Slug" value={planForm.slug} onChange={(event) => setPlanForm({ ...planForm, slug: event.target.value })} /><input className={inputClass} required placeholder="Symbol" value={planForm.symbol} onChange={(event) => setPlanForm({ ...planForm, symbol: event.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3"><select className={inputClass} value={planForm.category} onChange={(event) => setPlanForm({ ...planForm, category: event.target.value })}><option value="crypto">Crypto</option><option value="realestate">Real estate</option><option value="gold">Gold</option><option value="etfs">ETFs</option><option value="nfts">NFTs</option></select><select className={inputClass} value={planForm.riskLevel} onChange={(event) => setPlanForm({ ...planForm, riskLevel: event.target.value })}><option>Low</option><option>Medium</option><option>High</option></select></div>
-            <div className="grid grid-cols-3 gap-3"><input className={inputClass} type="number" min="0" step="any" placeholder="Price" value={planForm.price} onChange={(event) => setPlanForm({ ...planForm, price: event.target.value })} /><input className={inputClass} type="number" min="0" step="any" placeholder="APY %" value={planForm.expectedApy} onChange={(event) => setPlanForm({ ...planForm, expectedApy: event.target.value })} /><input className={inputClass} required type="number" min="0" step="any" placeholder="Minimum" value={planForm.minInvestment} onChange={(event) => setPlanForm({ ...planForm, minInvestment: event.target.value })} /></div>
+            <div className="grid grid-cols-3 gap-3"><input className={inputClass} type="number" min="0" step="any" placeholder="Unit price" value={planForm.price} onChange={(event) => setPlanForm({ ...planForm, price: event.target.value })} /><input className={inputClass} type="number" step="any" placeholder="24h change %" value={planForm.change24h} onChange={(event) => setPlanForm({ ...planForm, change24h: event.target.value })} /><input className={inputClass} required type="number" min="0.01" step="any" placeholder="Minimum investment" value={planForm.minInvestment} onChange={(event) => setPlanForm({ ...planForm, minInvestment: event.target.value })} /></div>
+            <div className="grid grid-cols-3 gap-3"><select className={inputClass} value={planForm.yieldType} onChange={(event) => setPlanForm({ ...planForm, yieldType: event.target.value as "weekly" | "monthly" })}><option value="weekly">Weekly yield</option><option value="monthly">Monthly yield</option></select><input className={inputClass} type="number" min="0" step="any" placeholder="Yield %" value={planForm.yieldPercent} onChange={(event) => setPlanForm({ ...planForm, yieldPercent: event.target.value })} /><input className={inputClass} type="number" min="1" step="1" placeholder="Payout interval (days)" value={planForm.payoutIntervalDays} onChange={(event) => setPlanForm({ ...planForm, payoutIntervalDays: event.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-3"><input className={inputClass} type="date" aria-label="Fixed payout date" value={planForm.payoutDate} onChange={(event) => setPlanForm({ ...planForm, payoutDate: event.target.value })} /><input className={inputClass} placeholder="Plan badge (optional)" value={planForm.badge} onChange={(event) => setPlanForm({ ...planForm, badge: event.target.value })} /></div>
+            <p className="text-xs text-slate-400">Expected payout at the minimum investment: <strong className="text-emerald-300">{money(numberValue(planForm.minInvestment) * (1 + numberValue(planForm.yieldPercent) / 100))}</strong> (capital plus projected yield)</p>
             <textarea className={inputClass} required placeholder="Description" value={planForm.description} onChange={(event) => setPlanForm({ ...planForm, description: event.target.value })} />
             <input className={inputClass} placeholder="Tags (comma separated)" value={planForm.tags} onChange={(event) => setPlanForm({ ...planForm, tags: event.target.value })} />
-            <div className="flex gap-2"><button className={buttonClass} disabled={busyId === "plan"}>{editingPlanId ? "Save plan" : "Create plan"}</button>{editingPlanId && <button type="button" onClick={() => { setEditingPlanId(""); setPlanForm({ name: "", slug: "", symbol: "", category: "crypto", price: "0", expectedApy: "0", minInvestment: "", riskLevel: "Medium", description: "", tags: "" }); }} className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-300">Cancel</button>}</div>
+            <label className="flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={planForm.active} onChange={(event) => setPlanForm({ ...planForm, active: event.target.checked })} />Plan available for new investments</label>
+            <div className="flex gap-2"><button className={buttonClass} disabled={busyId === "plan"}>{editingPlanId ? "Save plan" : "Create plan"}</button>{editingPlanId && <button type="button" onClick={() => { setEditingPlanId(""); setPlanForm({ name: "", slug: "", symbol: "", category: "crypto", price: "0", change24h: "0", yieldType: "monthly", yieldPercent: "0", payoutIntervalDays: "30", payoutDate: "", minInvestment: "", riskLevel: "Medium", badge: "", description: "", tags: "", active: true }); }} className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-300">Cancel</button>}</div>
           </form>
-          <div className={`${panelClass} overflow-x-auto`}><h2 className="mb-4 text-sm font-bold text-white">Investment plans</h2><table className="w-full min-w-[650px] text-left text-xs"><thead className="text-slate-400"><tr><th className="p-2">Plan</th><th className="p-2">APY</th><th className="p-2">Minimum</th><th className="p-2">Availability</th><th className="p-2">Actions</th></tr></thead><tbody className="divide-y divide-slate-800/70">{plans.map((plan) => <tr key={plan._id}><td className="p-2 font-semibold text-white">{plan.name}<span className="block text-slate-500">{plan.slug} · {plan.symbol}</span></td><td className="p-2">{plan.expectedApy}%</td><td className="p-2">{money(plan.minInvestment)}</td><td className="p-2">{plan.active ? "Active" : "Inactive"}</td><td className="p-2"><button onClick={() => { setEditingPlanId(plan._id); setPlanForm({ name: plan.name, slug: plan.slug, symbol: plan.symbol, category: plan.category, price: String(plan.price), expectedApy: String(plan.expectedApy), minInvestment: String(plan.minInvestment), riskLevel: plan.riskLevel, description: plan.description, tags: plan.tags.join(", ") }); }} className="mr-3 font-bold text-blue-300">Edit</button>{plan.active && <button disabled={busyId === plan._id} onClick={() => void deactivatePlan(plan)} className="font-bold text-rose-300">Deactivate</button>}</td></tr>)}</tbody></table></div>
+          <div className={`${panelClass} overflow-x-auto`}><h2 className="mb-4 text-sm font-bold text-white">Investment plans</h2><table className="w-full min-w-[950px] text-left text-xs"><thead className="text-slate-400"><tr><th className="p-2">Plan</th><th className="p-2">Unit price / 24h change</th><th className="p-2">Yield</th><th className="p-2">Payout at minimum</th><th className="p-2">Payout schedule</th><th className="p-2">Minimum</th><th className="p-2">Risk</th><th className="p-2">Availability</th><th className="p-2">Actions</th></tr></thead><tbody className="divide-y divide-slate-800/70">{plans.map((plan) => <tr key={plan._id}><td className="p-2 font-semibold text-white">{plan.name}<span className="block text-slate-500">{plan.slug} · {plan.symbol} · {plan.category}</span><span className="block text-slate-500">{plan.badge || "No badge"}</span><span className="block max-w-xs whitespace-normal font-normal text-slate-400">{plan.description}</span><span className="block text-slate-500">Tags: {plan.tags.join(", ") || "None"}</span></td><td className="p-2">{money(plan.price)}<span className="block text-slate-500">{numberValue(plan.change24h)}%</span></td><td className="p-2">{plan.yieldPercent}% {plan.yieldType}</td><td className="p-2">{money(plan.expectedReturns)}</td><td className="p-2">{plan.payoutDate && new Date(plan.payoutDate).getTime() > Date.now() ? new Date(plan.payoutDate).toLocaleDateString() : `Every ${plan.payoutIntervalDays ?? 30} days`}</td><td className="p-2">{money(plan.minInvestment)}</td><td className="p-2">{plan.riskLevel}</td><td className="p-2">{plan.active ? "Active" : "Inactive"}</td><td className="p-2"><button onClick={() => { setEditingPlanId(plan._id); setPlanForm({ name: plan.name, slug: plan.slug, symbol: plan.symbol, category: plan.category, price: String(plan.price), change24h: String(plan.change24h), yieldType: plan.yieldType, yieldPercent: String(plan.yieldPercent), payoutIntervalDays: String(plan.payoutIntervalDays ?? 30), payoutDate: plan.payoutDate ? new Date(plan.payoutDate).toISOString().slice(0, 10) : "", minInvestment: String(plan.minInvestment), riskLevel: plan.riskLevel, badge: plan.badge || "", description: plan.description, tags: plan.tags.join(", "), active: plan.active }); }} className="mr-3 font-bold text-blue-300">Edit</button>{plan.active ? <button disabled={busyId === plan._id} onClick={() => void deactivatePlan(plan)} className="font-bold text-rose-300">Deactivate</button> : <button disabled={busyId === plan._id} onClick={() => { setBusyId(plan._id); api.put(`/api/portal/plans/${plan._id}`, { active: true }).then(() => loadData()).catch((failure) => setError(errorMessage(failure))).finally(() => setBusyId("")); }} className="font-bold text-emerald-300">Reactivate</button>}</td></tr>)}</tbody></table></div>
         </div>}
 
         {section === "settings" && <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
