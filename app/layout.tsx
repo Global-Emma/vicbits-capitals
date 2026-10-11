@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import AppProvider from "@/utils/AppProvider";
 import "./globals.css";
 import { LiveActivityPopup } from "@/components/LiveActivityPopup";
+import { FormillaChat } from "@/components/FormillaChat";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -46,6 +47,7 @@ export default function RootLayout({
         <AppProvider>{children}</AppProvider>
 
         <LiveActivityPopup />
+         <FormillaChat />
       </body>
     </html>
   );
