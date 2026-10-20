@@ -16,6 +16,9 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   ShieldCheck,
+  AlertTriangle,
+  Clock,
+  CheckCircle2,
 } from "lucide-react";
 import { useApp } from "@/utils/useApp";
 import api from "@/utils/axios";
@@ -83,39 +86,53 @@ export default function VicbitsDashboard() {
         <main className="p-4 sm:p-6 lg:p-8 space-y-6 overflow-y-auto w-full max-w-7xl mx-auto">
           {/* 1. HEADER: GREETING & QUICK ACTIONS */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-800/60">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-                Welcome back, {user?.firstName || "Investor"} <span className="text-xl">👋</span>
-              </h1>
-              <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
-                <span>Here&apos;s your financial portfolio summary</span>
-                
-                  {(user?.kycStatus === "verified" || user?.isEmailVerified) && (
-        <VerifiedBadge size={18} />
+  <div>
+    <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+      Welcome back, {user?.firstName || "Investor"} <span className="text-xl">👋</span>
+    </h1>
+    <p className="text-xs text-slate-400 mt-1 flex items-center gap-2.5">
+      <span>Here&apos;s your financial portfolio summary</span>
+      
+      {/* Dynamic KYC Status Badges */}
+      {user?.kycStatus === "verified" ? (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+          <CheckCircle2 size={13} className="text-blue-400 shrink-0" />
+          <span>Verified</span>
+        </span>
+      ) : user?.kycStatus === "pending" ? (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+          <Clock size={13} className="text-amber-400 shrink-0 animate-pulse" />
+          <span>Pending</span>
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+          <AlertTriangle size={13} className="text-rose-400 shrink-0" />
+          <span>Unverified</span>
+        </span>
       )}
-              </p>
-            </div>
+    </p>
+  </div>
 
-            {/* Quick Action Buttons for Investor */}
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => router.push("/user-dashboard/deposit")}
-                className="px-4 py-2.5 rounded-xl font-bold text-xs text-slate-950 bg-gradient-to-r from-[#F3B233] to-[#E5A422] shadow-lg shadow-[#F3B233]/15 hover:brightness-110 transition-all flex items-center gap-2"
-              >
-                <Plus size={15} />
-                <span>Deposit Funds</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push("/user-dashboard/withdrawals")}
-                className="px-4 py-2.5 rounded-xl font-bold text-xs text-slate-200 bg-[#09172c] border border-slate-800 hover:border-slate-700 hover:text-white transition-all flex items-center gap-2"
-              >
-                <ArrowDownLeft size={15} />
-                <span>Withdraw Funds</span>
-              </button>
-            </div>
-          </div>
+  {/* Quick Action Buttons for Investor */}
+  <div className="flex items-center gap-3">
+    <button
+      type="button"
+      onClick={() => router.push("/user-dashboard/deposit")}
+      className="px-4 py-2.5 rounded-xl font-bold text-xs text-slate-950 bg-gradient-to-r from-[#F3B233] to-[#E5A422] shadow-lg shadow-[#F3B233]/15 hover:brightness-110 transition-all flex items-center gap-2"
+    >
+      <Plus size={15} />
+      <span>Deposit Funds</span>
+    </button>
+    <button
+      type="button"
+      onClick={() => router.push("/user-dashboard/withdrawals")}
+      className="px-4 py-2.5 rounded-xl font-bold text-xs text-slate-200 bg-[#09172c] border border-slate-800 hover:border-slate-700 hover:text-white transition-all flex items-center gap-2"
+    >
+      <ArrowDownLeft size={15} />
+      <span>Withdraw Funds</span>
+    </button>
+  </div>
+</div>
 
           {/* 2. TOP KPI STAT CARDS (4-Column Balanced Grid) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
