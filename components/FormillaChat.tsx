@@ -31,10 +31,10 @@ export const FormillaChat = () => {
     script.src = src;
     script.async = true;
 
-    // Standard `onload` is fully supported across all modern browsers
+    // Standard onload event compatible with modern browsers and TypeScript
     script.onload = () => {
       if (typeof window.Formilla !== "undefined") {
-        window.Formilla.guid = "cs0794ea-bc9e-43e2-b98f-eca4cd4456f6";
+        window.Formilla.guid = "cs533b61-8f42-41bf-9eb3-b71c7521b960";
         window.Formilla.loadWidgets();
       }
     };
