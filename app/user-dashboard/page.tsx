@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   Clock,
   CheckCircle2,
+  Copy,
 } from "lucide-react";
 import { useApp } from "@/utils/useApp";
 import api from "@/utils/axios";
@@ -36,6 +37,7 @@ const formatCurrency = (amount: number | string = 0) => {
 
 interface DashboardData {
   balance: number;
+  inviteCode: string;
   totalInvested: number;
   totalReturns: number;
   activeInvestments: number;
@@ -66,6 +68,7 @@ export default function VicbitsDashboard() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [plans, setPlans] = useState<InvestmentPlan[]>([]);
   const [currentTime, setCurrentTime] = useState<number | null>(null);
+  const [copiedReferralCode, setCopiedReferralCode] = useState(false);
   const { user } = useApp();
   const router = useRouter();
 
@@ -78,6 +81,17 @@ export default function VicbitsDashboard() {
       })
       .catch((error) => console.error("Could not load dashboard data:", error));
   }, []);
+
+  const copyReferralCode = async () => {
+    if (!dashboard?.inviteCode) return;
+    try {
+      await navigator.clipboard.writeText(dashboard.inviteCode);
+      setCopiedReferralCode(true);
+      window.setTimeout(() => setCopiedReferralCode(false), 2000);
+    } catch (error) {
+      console.error("Could not copy referral code:", error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#040B18] text-slate-100 flex font-sans antialiased selection:bg-[#F3B233] selection:text-slate-950">
@@ -133,6 +147,30 @@ export default function VicbitsDashboard() {
     </button>
   </div>
 </div>
+
+          <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[#F3B233]/20 bg-[#F3B233]/5 p-5">
+            <div>
+              <h2 className="text-sm font-bold text-white">Invite friends and earn $20</h2>
+              <p className="mt-1 text-xs text-slate-400">
+                Share your referral code. You&apos;ll receive $20 in your balance after each referred friend makes their first investment.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="rounded-lg border border-slate-700 bg-[#040D1A] px-4 py-2.5 font-mono text-sm font-bold tracking-wider text-[#F3B233]">
+                {dashboard?.inviteCode || "Loading..."}
+              </span>
+              <button
+                type="button"
+                onClick={copyReferralCode}
+                disabled={!dashboard?.inviteCode}
+                className="flex items-center gap-2 rounded-lg bg-[#F3B233] px-3 py-2.5 text-xs font-bold text-slate-950 transition hover:brightness-110 disabled:opacity-50"
+                aria-label="Copy referral code"
+              >
+                <Copy size={14} />
+                {copiedReferralCode ? "Copied" : "Copy"}
+              </button>
+            </div>
+          </section>
 
           {/* 2. TOP KPI STAT CARDS (4-Column Balanced Grid) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

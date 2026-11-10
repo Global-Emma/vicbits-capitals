@@ -862,7 +862,7 @@ export default function SignUpModal({ isOpen, onClose, onSuccess, onSwitchToSign
 
                     <div>
                       <label className="text-slate-300 font-semibold mb-1 block">
-                        Referral Code (Optional)
+                        Referral Code
                       </label>
                       <input
                         type="text"
@@ -872,6 +872,9 @@ export default function SignUpModal({ isOpen, onClose, onSuccess, onSwitchToSign
                         placeholder="e.g. VIC-8890"
                         className="w-full px-3 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 focus:border-[#F3B233] focus:outline-none transition-all"
                       />
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        Enter your friend&apos;s code if you were invited. This field is optional.
+                      </p>
                     </div>
 
                     <div className="space-y-2 pt-2">
