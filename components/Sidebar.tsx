@@ -16,6 +16,7 @@ import {
   Settings,
   LucideIcon,
   ArrowUpRight,
+  UsersRound,
 } from "lucide-react";
 import { useApp } from "@/utils/useApp";
 import { useRouter } from "next/navigation";
@@ -33,6 +34,7 @@ const DEFAULT_NAV_ITEMS: NavItem[] = [
   { name: "Portfolio", icon: Wallet, href: '/user-dashboard/portfolio' },
   { name: "Withdrawals", icon: ArrowUpRight, href: '/user-dashboard/withdrawals' },
   { name: "Transactions", icon: History, href: '/user-dashboard/transactions' },
+  { name: "Referrals", icon: UsersRound, href: '/user-dashboard/referrals' },
   { name: "Settings", icon: Settings, href: '/user-dashboard/settings' },
 ];
 
