@@ -46,7 +46,7 @@ export default function WithdrawalsPage() {
   const [dashboardBalance, setDashboardBalance] = useState<number | null>(null);
   const [requestError, setRequestError] = useState("");
   const withdrawableBalance = Number(dashboardBalance ?? user?.balance ?? 0);
-  const dailyLimitTotal = Number(user?.withdrawalLimit || 10000);
+  const dailyLimitTotal = Number(user?.kycStatus === "verified" ? 50000 : 10000);
   const dailyLimitRemaining = dailyLimitTotal - dailyLimitUsed;
 
   useEffect(() => {
