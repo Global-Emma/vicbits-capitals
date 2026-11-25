@@ -43,17 +43,21 @@ export default function WithdrawalsPage() {
   const { user, refetchData } = useApp();
   const [withdrawalHistory, setWithdrawalHistory] = useState<WithdrawalRecord[]>([]);
   const [dailyLimitUsed, setDailyLimitUsed] = useState(0);
+  const [dailyLimitFromApi, setDailyLimitFromApi] = useState<number | null>(null);
   const [dashboardBalance, setDashboardBalance] = useState<number | null>(null);
   const [requestError, setRequestError] = useState("");
   const withdrawableBalance = Number(dashboardBalance ?? user?.balance ?? 0);
-  const dailyLimitTotal = Number(user?.kycStatus === "verified" ? 50000 : 10000);
-  const dailyLimitRemaining = dailyLimitTotal - dailyLimitUsed;
+  const dailyLimitTotal = dailyLimitFromApi ?? (user?.kycStatus === "verified" ? 50000 : 10000);
+  const dailyLimitRemaining = Math.max(dailyLimitTotal - dailyLimitUsed, 0);
 
   useEffect(() => {
     Promise.all([api.get("/api/portal/withdrawals"), api.get("/api/portal/dashboard")])
       .then(([withdrawalsResponse, dashboardResponse]) => {
         setWithdrawalHistory(withdrawalsResponse.data.data.withdrawals);
         setDailyLimitUsed(withdrawalsResponse.data.data.dailyLimitUsed);
+        if (typeof withdrawalsResponse.data.data.dailyLimit === "number") {
+          setDailyLimitFromApi(withdrawalsResponse.data.data.dailyLimit);
+        }
         setDashboardBalance(Number(dashboardResponse.data.data.balance) || 0);
       })
       .catch((error) => {
