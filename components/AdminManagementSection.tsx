@@ -28,6 +28,7 @@ interface Investor {
   lastName: string;
   email: string;
   balance: number | string;
+  withdrawalLimit?: number | string | null;
   totalReturns?: number | string;
   totalInvested?: number | string;
   dob?: string;
@@ -154,7 +155,7 @@ export default function AdminManagementSection({ section }: { section: Section }
   const [selectedInvestor, setSelectedInvestor] = useState<Investor | null>(null);
   const [userActivity, setUserActivity] = useState<{ transactions: Transaction[]; investments: AdminInvestment[] } | null>(null);
   const [balanceForm, setBalanceForm] = useState({ direction: "credit", amount: "", reason: "" });
-  const [investorForm, setInvestorForm] = useState({ firstName: "", lastName: "", email: "", dob: "", phone: "", country: "", streetAddress: "", city: "", state: "", postalCode: "", investorType: "", targetCapital: "", kycStatus: "unverified", totalInvested: "0", totalReturns: "0" });
+  const [investorForm, setInvestorForm] = useState({ firstName: "", lastName: "", email: "", dob: "", phone: "", country: "", streetAddress: "", city: "", state: "", postalCode: "", investorType: "", targetCapital: "", kycStatus: "unverified", withdrawalLimit: "10000", totalInvested: "0", totalReturns: "0" });
   const [planForm, setPlanForm] = useState({ name: "", slug: "", symbol: "", category: "crypto", price: "0", change24h: "0", yieldType: "monthly" as "weekly" | "monthly", yieldPercent: "0", payoutIntervalDays: "30", payoutDate: "", minInvestment: "", riskLevel: "Medium", badge: "", description: "", tags: "", active: true });
   const [editingPlanId, setEditingPlanId] = useState("");
   const [methodForm, setMethodForm] = useState({ asset: "", name: "", network: "", address: "", minimumUsdAmount: "0", confirmations: "1" });
@@ -247,6 +248,7 @@ export default function AdminManagementSection({ section }: { section: Section }
           : "Individual Investor",
         targetCapital: data.data.user.targetCapital || "",
         kycStatus: data.data.user.kycStatus || "unverified",
+        withdrawalLimit: String(data.data.user.withdrawalLimit ?? (data.data.user.kycStatus === "verified" ? 50000 : 10000)),
         totalInvested: String(data.data.user.totalInvested ?? 0),
         totalReturns: String(data.data.user.totalReturns ?? 0),
       });
@@ -264,6 +266,7 @@ export default function AdminManagementSection({ section }: { section: Section }
     try {
       const { data } = await api.put(`/api/portal/admin/users/${selectedInvestor._id}`, {
         ...investorForm,
+        withdrawalLimit: Number(investorForm.withdrawalLimit),
         totalInvested: Number(investorForm.totalInvested),
         totalReturns: Number(investorForm.totalReturns),
       });
@@ -495,11 +498,11 @@ export default function AdminManagementSection({ section }: { section: Section }
           <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
             <div className={`${panelClass} overflow-x-auto`}>
               <h2 className="mb-4 text-sm font-bold text-white">Investor accounts ({filteredInvestors.length})</h2>
-              <table className="w-full min-w-[600px] text-left text-xs">
-                <thead className="text-slate-400"><tr><th className="p-2">Investor</th><th className="p-2">Email</th><th className="p-2">Cash balance</th><th className="p-2">Joined</th></tr></thead>
+              <table className="w-full min-w-[720px] text-left text-xs">
+                <thead className="text-slate-400"><tr><th className="p-2">Investor</th><th className="p-2">Email</th><th className="p-2">Cash balance</th><th className="p-2">Daily withdrawal limit</th><th className="p-2">Joined</th></tr></thead>
                 <tbody className="divide-y divide-slate-800/70">
                   {filteredInvestors.map((investor) => <tr key={investor._id} onClick={() => void selectInvestor(investor)} className={`cursor-pointer hover:bg-slate-800/30 ${selectedInvestor?._id === investor._id ? "bg-blue-500/10" : ""}`}>
-                    <td className="p-2 font-semibold text-white">{investor.firstName} {investor.lastName}</td><td className="p-2 text-slate-400">{investor.email}</td><td className="p-2 text-emerald-300">{money(investor.balance)}</td><td className="p-2 text-slate-400">{new Date(investor.createdAt).toLocaleDateString()}</td>
+                    <td className="p-2 font-semibold text-white">{investor.firstName} {investor.lastName}</td><td className="p-2 text-slate-400">{investor.email}</td><td className="p-2 text-emerald-300">{money(investor.balance)}</td><td className="p-2 text-slate-300">{money(investor.withdrawalLimit ?? (investor.kycStatus === "verified" ? 50000 : 10000))}</td><td className="p-2 text-slate-400">{new Date(investor.createdAt).toLocaleDateString()}</td>
                   </tr>)}
                 </tbody>
               </table>
@@ -534,6 +537,7 @@ export default function AdminManagementSection({ section }: { section: Section }
                 <select className={inputClass} required value={investorForm.investorType} onChange={(event) => setInvestorForm({ ...investorForm, investorType: event.target.value })}><option value="" disabled>Select investor type</option><option>Individual Investor</option><option>Institutional Investor</option><option>Accredited Investor</option><option>Corporate / Entity</option></select>
                 <input className={inputClass} placeholder="Target capital" value={investorForm.targetCapital} onChange={(event) => setInvestorForm({ ...investorForm, targetCapital: event.target.value })} />
                 <select className={inputClass} value={investorForm.kycStatus} onChange={(event) => setInvestorForm({ ...investorForm, kycStatus: event.target.value })}><option value="unverified">Unverified</option><option value="pending">Pending</option><option value="verified">Verified</option><option value="rejected">Rejected</option></select>
+                <label className="block text-[10px] text-slate-400">Rolling 24-hour withdrawal limit (USD)<input className={`${inputClass} mt-1`} type="number" min="0" step="0.01" required value={investorForm.withdrawalLimit} onChange={(event) => setInvestorForm({ ...investorForm, withdrawalLimit: event.target.value })} /></label>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-[10px] text-slate-400">Invested<input className={`${inputClass} mt-1`} type="number" min="0" step="0.01" value={investorForm.totalInvested} onChange={(event) => setInvestorForm({ ...investorForm, totalInvested: event.target.value })} /></label>
                   <label className="text-[10px] text-slate-400">Returns<input className={`${inputClass} mt-1`} type="number" min="0" step="0.01" value={investorForm.totalReturns} onChange={(event) => setInvestorForm({ ...investorForm, totalReturns: event.target.value })} /></label>
